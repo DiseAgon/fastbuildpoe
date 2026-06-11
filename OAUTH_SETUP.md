@@ -1,5 +1,10 @@
 # "Sign in with Path of Exile" — OAuth setup
 
+> **Deferred until we have an official domain.** Register the GGG OAuth client
+> against the real domain's redirect URI (not the `*.vercel.app` URL). The code
+> is already built and dormant — activating it is just: register client → set
+> env vars → test. Until then, nothing here affects the live site.
+
 To import a character directly (no pobb.in), the app uses GGG's OAuth. **GGG must
 register and approve an OAuth client for you** — there's no instant self-service,
 so start this early (approval can take days).
