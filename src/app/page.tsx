@@ -22,7 +22,13 @@ type ByGame<T> = Record<GameId, T>;
 const emptyByGame = <T,>(value: T): ByGame<T> => ({ poe1: value, poe2: value });
 
 function allItemsOf(view: ItemSetView): ParsedItem[] {
-  return [...view.gear, ...view.jewels, ...view.gems.flatMap((g) => g.gems), ...view.flasks];
+  return [
+    ...view.gear,
+    ...view.jewels,
+    ...view.gems.flatMap((g) => g.gems),
+    ...view.flasks,
+    ...view.charms,
+  ];
 }
 
 /** Grand total of all manually-entered prices in the current view. */
@@ -83,13 +89,14 @@ export default function Home() {
   }, [build, activeSetId]);
 
   const offsets = useMemo(() => {
-    if (!view) return { gear: 1, jewels: 1, gems: 1, flasks: 1, totalGems: 0 };
+    if (!view) return { gear: 1, jewels: 1, gems: 1, flasks: 1, charms: 1, totalGems: 0 };
     const totalGems = view.gems.reduce((sum, g) => sum + g.gems.length, 0);
     const gear = 1;
     const jewels = gear + view.gear.length;
     const gems = jewels + view.jewels.length;
     const flasks = gems + totalGems;
-    return { gear, jewels, gems, flasks, totalGems };
+    const charms = flasks + view.flasks.length;
+    return { gear, jewels, gems, flasks, charms, totalGems };
   }, [view]);
 
   const importInput = useCallback(async (input: string): Promise<ParsedBuild | null> => {
@@ -149,7 +156,11 @@ export default function Home() {
   }
 
   const total = view
-    ? view.gear.length + view.jewels.length + offsets.totalGems + view.flasks.length
+    ? view.gear.length +
+      view.jewels.length +
+      offsets.totalGems +
+      view.flasks.length +
+      view.charms.length
     : 0;
 
   return (
@@ -286,6 +297,7 @@ export default function Home() {
                   <CategorySection label="Jewels" items={view.jewels} startNumber={offsets.jewels} defaultOpen={false} />
                   <GemSection groups={view.gems} startNumber={offsets.gems} defaultOpen={false} />
                   <CategorySection label="Flasks" items={view.flasks} startNumber={offsets.flasks} defaultOpen={false} />
+                  <CategorySection label="Charms" items={view.charms} startNumber={offsets.charms} defaultOpen={false} />
                 </div>
               )}
             </div>

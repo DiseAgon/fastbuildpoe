@@ -2,7 +2,7 @@ import type { GameId } from "@/lib/game/registry";
 
 export type Rarity = "normal" | "magic" | "rare" | "unique" | "gem" | "currency";
 
-export type ItemCategory = "gear" | "jewel" | "gem" | "flask";
+export type ItemCategory = "gear" | "jewel" | "gem" | "flask" | "charm";
 
 export type ModType =
   | "implicit"
@@ -73,6 +73,7 @@ export interface ItemSetView {
   jewels: ParsedItem[];
   gems: GemGroup[];
   flasks: ParsedItem[];
+  charms: ParsedItem[];
 }
 
 export interface ParsedBuild {

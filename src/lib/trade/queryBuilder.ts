@@ -151,11 +151,13 @@ function bandedMin(value: number | undefined, factor: number): number | null {
  * Utility flasks (PoE1) are "<base> Flask", e.g.
  *   "Chemist's Quicksilver Flask of Adrenaline" → "Quicksilver Flask".
  */
-function flaskBase(name: string): string {
+function consumableBase(name: string): string {
   const lifeMana = name.match(/(\S+)\s+(Life|Mana)\s+Flask/i);
   if (lifeMana) return `${lifeMana[1]} ${lifeMana[2]} Flask`;
-  const utility = name.match(/(\S+)\s+Flask/i);
-  if (utility) return `${utility[1]} Flask`;
+  const flask = name.match(/(\S+)\s+Flask/i);
+  if (flask) return `${flask[1]} Flask`;
+  const charm = name.match(/(\S+)\s+Charm/i);
+  if (charm) return `${charm[1]} Charm`;
   return name;
 }
 
@@ -369,8 +371,8 @@ export async function buildItemQuery(
     query.name = item.name;
     if (useBase) query.type = item.baseType;
     query.filters.type_filters = { filters: { rarity: { option: "unique" } } };
-  } else if (item.category === "flask") {
-    if (useBase) query.type = flaskBase(item.baseType);
+  } else if (item.category === "flask" || item.category === "charm") {
+    if (useBase) query.type = consumableBase(item.baseType);
   } else if (useBase) {
     query.type = item.baseType;
   }

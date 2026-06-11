@@ -27,7 +27,7 @@ const ItemSchema = z.object({
   rarity: z.enum(["normal", "magic", "rare", "unique", "gem", "currency"]),
   name: z.string(),
   baseType: z.string(),
-  category: z.enum(["gear", "jewel", "gem", "flask"]),
+  category: z.enum(["gear", "jewel", "gem", "flask", "charm"]),
   gemLevel: z.number().optional(),
   quality: z.number().optional(),
   corrupted: z.boolean().optional().default(false),

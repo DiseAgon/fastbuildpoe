@@ -151,6 +151,7 @@ export function parseBuildXml(xml: string): ParsedBuild {
 
     const gear: ParsedItem[] = [];
     const flasks: ParsedItem[] = [];
+    const charms: ParsedItem[] = [];
 
     if (setNode) {
       for (const slot of asArray(setNode.Slot as XmlNode | XmlNode[] | undefined)) {
@@ -162,6 +163,7 @@ export function parseBuildXml(xml: string): ParsedBuild {
         const parsed = parseItemText(text, slotName);
         if (!parsed) continue;
         if (parsed.category === "flask") flasks.push(parsed);
+        else if (parsed.category === "charm") charms.push(parsed);
         else if (parsed.category === "gear") gear.push(parsed);
       }
     }
@@ -176,6 +178,7 @@ export function parseBuildXml(xml: string): ParsedBuild {
       jewels,
       gems,
       flasks,
+      charms,
     });
   }
 

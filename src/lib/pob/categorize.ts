@@ -36,6 +36,7 @@ export function categorize(
   rarity: Rarity,
 ): ItemCategory {
   if (rarity === "gem") return "gem";
+  if ((slot && /charm/i.test(slot)) || /\bcharm\b/i.test(baseType)) return "charm";
   if ((slot && /flask/i.test(slot)) || /\bflask\b/i.test(baseType)) return "flask";
   if (/\bjewel\b/i.test(baseType)) return "jewel";
   return "gear";
