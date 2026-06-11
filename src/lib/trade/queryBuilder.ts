@@ -1,7 +1,7 @@
 import type { GameId } from "@/lib/game/registry";
 import { getGame } from "@/lib/game/registry";
 import type { ParsedItem } from "@/types/item";
-import { getStatIndex, matchMod } from "./statIndex";
+import { getStatIndex, matchMod, normalizeStatText } from "./statIndex";
 import { computePseudoFilters } from "./pseudo";
 import { getWeaponBase } from "./weaponBase";
 import { computeWeaponDps } from "./weaponDps";
@@ -42,6 +42,10 @@ export interface EditableFilter {
   max: number | null;
   /** and = required · count = optional (any N) · not = must NOT have · off = ignore. */
   group: FilterGroup;
+  /** Search the fractured variant of this mod (uses fracturedStatId). */
+  fractured: boolean;
+  /** Fractured stat id for this mod, if one exists (else null → no Frac toggle). */
+  fracturedStatId: string | null;
 }
 
 /** A computed equipment filter — armour defences or weapon DPS. */
@@ -135,6 +139,9 @@ async function autoFilters(
       unmatched++;
       continue;
     }
+    const fracturedEntry = index.byText
+      .get(normalizeStatText(mod.template))
+      ?.find((e) => e.type === "fractured");
     filters.push({
       statId: hit.entry.id,
       text: mod.text,
@@ -142,6 +149,9 @@ async function autoFilters(
       min: hit.negated ? null : bandedMin(mod.values[0], cfg.factor),
       max: null,
       group: cfg.group,
+      // Pre-check the toggle if the build's own mod is already fractured.
+      fractured: mod.type === "fractured" && !!fracturedEntry,
+      fracturedStatId: fracturedEntry?.id ?? null,
     });
   }
   return { filters, unmatched };
@@ -201,7 +211,9 @@ async function autoComputed(
 }
 
 function toStatFilter(f: EditableFilter): TradeStatFilter {
-  const filter: TradeStatFilter = { id: f.statId };
+  // Use the fractured variant id when the user marked this mod as fractured.
+  const id = f.fractured && f.fracturedStatId ? f.fracturedStatId : f.statId;
+  const filter: TradeStatFilter = { id };
   const value: { min?: number; max?: number } = {};
   if (f.min !== null && f.min !== undefined) value.min = f.min;
   if (f.max !== null && f.max !== undefined) value.max = f.max;
@@ -228,9 +240,18 @@ export async function buildItemQuery(
     unmatched = auto.unmatched;
   }
 
-  const andF = filters.filter((f) => f.group === "and");
-  const countF = filters.filter((f) => f.group === "count");
-  const notF = filters.filter((f) => f.group === "not");
+  // An item has only one fractured mod, so AND-ing several fractured choices
+  // finds nothing. When the user marks 2+ as fractured, collapse them into a
+  // "any 1 of these fractured" count group instead (more variable matching).
+  const fracMulti = filters.filter(
+    (f) => f.group !== "off" && f.fractured && f.fracturedStatId,
+  );
+  const useFracCount = fracMulti.length >= 2;
+  const inFracCount = (f: EditableFilter) => useFracCount && f.fractured && !!f.fracturedStatId;
+
+  const andF = filters.filter((f) => f.group === "and" && !inFracCount(f));
+  const countF = filters.filter((f) => f.group === "count" && !inFracCount(f));
+  const notF = filters.filter((f) => f.group === "not" && !inFracCount(f));
 
   const defaultCount = Math.max(1, Math.ceil(countF.length * cfg.fraction));
   const countMin = Math.min(overrides?.countMin ?? defaultCount, countF.length || 1);
@@ -253,6 +274,10 @@ export async function buildItemQuery(
   if (notF.length > 0) {
     stats.push({ type: "not", filters: notF.map(toStatFilter) });
     strategyParts.push(`${notF.length} excluded`);
+  }
+  if (useFracCount) {
+    stats.push({ type: "count", value: { min: 1 }, filters: fracMulti.map(toStatFilter) });
+    strategyParts.push(`any 1 of ${fracMulti.length} fractured`);
   }
 
   // Buy-out → "Instant Buyout": status `securable` (supported by both PoE1 & PoE2

@@ -49,6 +49,8 @@ const FilterSchema = z.object({
   min: z.number().nullable(),
   max: z.number().nullable(),
   group: z.enum(["and", "count", "not", "off"]),
+  fractured: z.boolean().optional().default(false),
+  fracturedStatId: z.string().nullable().optional().default(null),
 });
 
 const EquipmentSchema = z.object({

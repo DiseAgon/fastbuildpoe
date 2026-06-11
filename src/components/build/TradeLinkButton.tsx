@@ -318,8 +318,28 @@ export function TradeLinkButton({ item }: { item: ParsedItem }) {
                   </option>
                 ))}
               </select>
+              {f.fracturedStatId && (
+                <label
+                  className={`flex items-center gap-0.5 ${f.fractured ? "text-rarity-unique" : "text-muted"}`}
+                  title="Search the fractured version of this mod"
+                >
+                  <input
+                    type="checkbox"
+                    checked={f.fractured}
+                    onChange={(e) =>
+                      update({
+                        filters: sel.filters.map((x, j) =>
+                          j === i ? { ...x, fractured: e.target.checked } : x,
+                        ),
+                      })
+                    }
+                    className="h-3 w-3 accent-[color:var(--rarity-unique)]"
+                  />
+                  Frac
+                </label>
+              )}
               <span
-                className={`flex-1 truncate ${f.group === "off" ? "text-muted/50 line-through" : "text-text/90"}`}
+                className={`flex-1 truncate ${f.group === "off" ? "text-muted/50 line-through" : f.fractured ? "text-rarity-unique" : "text-text/90"}`}
                 title={f.text}
               >
                 {f.text}
