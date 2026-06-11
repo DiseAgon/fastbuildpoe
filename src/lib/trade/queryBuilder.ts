@@ -94,6 +94,7 @@ interface FamilyInfo {
   key: string;
   label: string;
   memberIds: string[];
+  exact: boolean;
 }
 
 /** Resolve each mod family's member stat ids for this game (skips missing). */
@@ -106,7 +107,7 @@ function resolveFamilies(index: StatIndex): Map<string, FamilyInfo> {
       if (entry && !memberIds.includes(entry.id)) memberIds.push(entry.id);
     }
     if (memberIds.length < 2) continue; // need siblings to be worth expanding
-    const info: FamilyInfo = { key: fam.key, label: fam.label, memberIds };
+    const info: FamilyInfo = { key: fam.key, label: fam.label, memberIds, exact: !!fam.exact };
     for (const id of memberIds) byStatId.set(id, info);
   }
   return byStatId;
@@ -165,6 +166,7 @@ async function autoFilters(
 ): Promise<{ filters: EditableFilter[]; unmatched: number }> {
   const cfg = MODE_CONFIG[mode];
   const index = await getStatIndex(game);
+  const families = resolveFamilies(index);
 
   const filters: EditableFilter[] = [];
   let unmatched = 0;
@@ -177,12 +179,15 @@ async function autoFilters(
     const fracturedEntry = index.byText
       .get(normalizeStatText(mod.template))
       ?.find((e) => e.type === "fractured");
+    // Exact-match families (timeless jewel seeds) lock min = max = roll.
+    const exact = families.get(hit.entry.id)?.exact ?? false;
+    const roll = mod.values[0];
     filters.push({
       statId: hit.entry.id,
       text: mod.text,
-      currentRoll: mod.values[0] ?? null,
-      min: hit.negated ? null : bandedMin(mod.values[0], cfg.factor),
-      max: null,
+      currentRoll: roll ?? null,
+      min: exact ? (roll ?? null) : hit.negated ? null : bandedMin(roll, cfg.factor),
+      max: exact ? (roll ?? null) : null,
       group: cfg.group,
       // Pre-check the toggle if the build's own mod is already fractured.
       fractured: mod.type === "fractured" && !!fracturedEntry,

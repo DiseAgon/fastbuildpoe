@@ -10,6 +10,8 @@ export interface ModFamily {
   label: string;
   /** Canonical stat texts (with `#` placeholders) of the family members. */
   texts: string[];
+  /** Match the value exactly (min = max), e.g. timeless jewel seeds. */
+  exact?: boolean;
 }
 
 export const MOD_FAMILIES: ModFamily[] = [
@@ -56,6 +58,63 @@ export const MOD_FAMILIES: ModFamily[] = [
       "#% increased Fire Damage",
       "#% increased Cold Damage",
       "#% increased Lightning Damage",
+    ],
+  },
+  // Timeless jewels (PoE1): conqueror variants are a family; the seed must match
+  // EXACTLY (it determines the passive transforms), hence exact: true.
+  {
+    key: "timeless-gv",
+    label: "Glorious Vanity",
+    exact: true,
+    texts: [
+      "Bathed in the blood of # sacrificed in the name of Xibaqua",
+      "Bathed in the blood of # sacrificed in the name of Ahuana",
+      "Bathed in the blood of # sacrificed in the name of Doryani",
+      "Bathed in the blood of # sacrificed in the name of Zerphi",
+    ],
+  },
+  {
+    key: "timeless-lp",
+    label: "Lethal Pride",
+    exact: true,
+    texts: [
+      "Commanded leadership over # warriors under Kaom",
+      "Commanded leadership over # warriors under Rakiata",
+      "Commanded leadership over # warriors under Akoya",
+      "Commanded leadership over # warriors under Kiloava",
+    ],
+  },
+  {
+    key: "timeless-br",
+    label: "Brutal Restraint",
+    exact: true,
+    texts: [
+      "Denoted service of # dekhara in the akhara of Balbala",
+      "Denoted service of # dekhara in the akhara of Asenath",
+      "Denoted service of # dekhara in the akhara of Nasima",
+      "Denoted service of # dekhara in the akhara of Deshret",
+    ],
+  },
+  {
+    key: "timeless-mf",
+    label: "Militant Faith",
+    exact: true,
+    texts: [
+      "Carved to glorify # new faithful converted by High Templar Avarius",
+      "Carved to glorify # new faithful converted by High Templar Maxarius",
+      "Carved to glorify # new faithful converted by High Templar Dominus",
+      "Carved to glorify # new faithful converted by High Templar Venarius",
+    ],
+  },
+  {
+    key: "timeless-eh",
+    label: "Elegant Hubris",
+    exact: true,
+    texts: [
+      "Commissioned # coins to commemorate Cadiro",
+      "Commissioned # coins to commemorate Victario",
+      "Commissioned # coins to commemorate Caspiro",
+      "Commissioned # coins to commemorate Chitus",
     ],
   },
 ];
