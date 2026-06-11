@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ----------------------------------------------------------------------------
+   Design tokens — PoE dark editorial direction.
+   Palette in oklch for perceptual consistency; rarity colors match the game.
+---------------------------------------------------------------------------- */
+:root {
+  --color-bg: oklch(16% 0.012 70);
+  --color-surface: oklch(20% 0.014 68);
+  --color-surface-raised: oklch(24% 0.016 66);
+  --color-border: oklch(32% 0.018 64);
+  --color-text: oklch(90% 0.012 80);
+  --color-text-muted: oklch(68% 0.014 75);
+  --color-accent: oklch(78% 0.12 78); /* parchment gold */
+  --color-accent-soft: oklch(64% 0.09 78);
+
+  --rarity-normal: oklch(82% 0 0);
+  --rarity-magic: oklch(70% 0.16 268);
+  --rarity-rare: oklch(86% 0.16 100);
+  --rarity-unique: oklch(58% 0.14 52);
+  --rarity-gem: oklch(72% 0.12 190);
+
+  --font-serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino,
+    Georgia, "Times New Roman", serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+
+  --space-section: clamp(2rem, 1.5rem + 3vw, 5rem);
+  --radius: 10px;
+  --duration-fast: 150ms;
+  --duration-normal: 280ms;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html,
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+body {
+  /* subtle atmospheric vignette so the page does not read as flat */
+  background-image: radial-gradient(
+    120% 80% at 50% -10%,
+    oklch(24% 0.02 70 / 0.6),
+    transparent 60%
+  );
+  background-attachment: fixed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
