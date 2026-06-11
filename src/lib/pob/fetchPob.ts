@@ -34,25 +34,37 @@ export async function resolvePobInput(input: string): Promise<string> {
 
 async function fetchPobbinRaw(id: string): Promise<string> {
   let res: Response;
-  try {
-    res = await fetch(`https://pobb.in/${id}/raw`, {
-      headers: { "User-Agent": USER_AGENT, Accept: "text/plain" },
-      cache: "no-store",
-    });
-  } catch {
-    throw new Error("Could not reach pobb.in. Check your connection and try again.");
+  // pobb.in fetches from a datacenter IP (Vercel) are occasionally flaky;
+  // retry a couple of times with a timeout before giving up.
+  let lastError = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 9000);
+    try {
+      res = await fetch(`https://pobb.in/${id}/raw`, {
+        headers: { "User-Agent": USER_AGENT, Accept: "text/plain" },
+        cache: "no-store",
+        signal: controller.signal,
+      });
+    } catch {
+      lastError = "Could not reach pobb.in.";
+      continue;
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (res.status === 404) {
+      throw new Error(`pobb.in build "${id}" not found.`);
+    }
+    if (!res.ok) {
+      lastError = `pobb.in returned ${res.status}.`;
+      continue; // retry transient 5xx / rate limits
+    }
+
+    const body = (await res.text()).trim();
+    if (body) return body;
+    lastError = `pobb.in build "${id}" was empty.`;
   }
 
-  if (res.status === 404) {
-    throw new Error(`pobb.in build "${id}" not found.`);
-  }
-  if (!res.ok) {
-    throw new Error(`pobb.in returned ${res.status} for build "${id}".`);
-  }
-
-  const body = (await res.text()).trim();
-  if (!body) {
-    throw new Error(`pobb.in build "${id}" was empty.`);
-  }
-  return body;
+  throw new Error(`${lastError} Please try importing again.`);
 }

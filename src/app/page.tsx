@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ImportForm } from "@/components/import/ImportForm";
+import { SignInPoe } from "@/components/import/SignInPoe";
 import { CategorySection } from "@/components/build/CategorySection";
 import { GemSection } from "@/components/build/GemSection";
 import { BuildProvider, formatDivine, useBuild } from "@/components/build/BuildContext";
@@ -131,6 +132,14 @@ export default function Home() {
     void importInput(input);
   }
 
+  // Apply a parsed build that didn't come from a pasted input (e.g. character import).
+  const applyBuild = useCallback((b: ParsedBuild) => {
+    setBuilds((prev) => ({ ...prev, [b.game]: b }));
+    setActiveSetIds((prev) => ({ ...prev, [b.game]: b.activeItemSetId }));
+    setGame(b.game);
+    setError(null);
+  }, []);
+
   // Restore a shared session from the URL hash (#s=...) once on mount.
   useEffect(() => {
     if (typeof window === "undefined" || !window.location.hash.startsWith("#s=")) return;
@@ -233,6 +242,7 @@ export default function Home() {
                 {error}
               </p>
             )}
+            <SignInPoe game={game} onLoad={applyBuild} />
             <p className="mt-3 text-xs text-muted">
               Viewing <span className="text-text">{GAMES[game].label}</span>
               {league ? <> · league <span className="text-text">{league}</span></> : null}. Each
