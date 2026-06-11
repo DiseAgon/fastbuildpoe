@@ -118,9 +118,19 @@ function bandedMin(value: number | undefined, factor: number): number | null {
   return Math.max(1, Math.floor(value * factor));
 }
 
-function flaskBase(baseType: string): string {
-  const match = baseType.match(/^(.*?\bflask)\b/i);
-  return match ? match[1] : baseType;
+/**
+ * Extract a searchable flask base type from a (possibly magic) flask name.
+ * Magic flasks carry a prefix + suffix, e.g.
+ *   "Seething Ultimate Life Flask of the Mixologist" → "Ultimate Life Flask".
+ * Utility flasks (PoE1) are "<base> Flask", e.g.
+ *   "Chemist's Quicksilver Flask of Adrenaline" → "Quicksilver Flask".
+ */
+function flaskBase(name: string): string {
+  const lifeMana = name.match(/(\S+)\s+(Life|Mana)\s+Flask/i);
+  if (lifeMana) return `${lifeMana[1]} ${lifeMana[2]} Flask`;
+  const utility = name.match(/(\S+)\s+Flask/i);
+  if (utility) return `${utility[1]} Flask`;
+  return name;
 }
 
 async function autoFilters(
