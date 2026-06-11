@@ -255,10 +255,10 @@ export async function buildItemQuery(
     strategyParts.push(`${notF.length} excluded`);
   }
 
-  // Buy-out → "Instant Buyout". PoE2 uses status `securable`; PoE1 has no
-  // instant-buyout status, so it uses the priced sale_type instead.
+  // Buy-out → "Instant Buyout": status `securable` (supported by both PoE1 & PoE2
+  // trade after async trading). Otherwise "In Person (Online)".
   const buyout = overrides?.buyout ?? true;
-  const statusOption = buyout && game === "poe2" ? "securable" : "online";
+  const statusOption = buyout ? "securable" : "online";
   const query: TradeQuery = { status: { option: statusOption }, stats, filters: {} };
   const useBase = overrides?.useBase ?? true;
 
@@ -327,10 +327,7 @@ export async function buildItemQuery(
     query.filters.misc_filters = misc;
   }
 
-  // PoE1 buy-out: restrict to listings with a fixed price (PoE2 uses `securable`).
-  if (buyout && game === "poe1") {
-    query.filters.trade_filters = { filters: { sale_type: { option: "priced" } } };
-  }
+  // (Buy-out is handled by status `securable` above for both games.)
 
   return {
     query,
