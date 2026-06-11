@@ -1,8 +1,9 @@
 import type { GameId } from "@/lib/game/registry";
 import { getGame } from "@/lib/game/registry";
 import type { ParsedItem } from "@/types/item";
-import { getStatIndex, matchMod, normalizeStatText } from "./statIndex";
+import { getStatIndex, matchMod, normalizeStatText, type StatIndex } from "./statIndex";
 import { computePseudoFilters } from "./pseudo";
+import { MOD_FAMILIES } from "./groups";
 import { getWeaponBase } from "./weaponBase";
 import { computeWeaponDps } from "./weaponDps";
 
@@ -85,6 +86,30 @@ export interface QueryOverrides {
 export interface TradeStatFilter {
   id: string;
   value?: { min?: number; max?: number };
+  /** Present in the group but unchecked on the trade site (sibling family members). */
+  disabled?: boolean;
+}
+
+interface FamilyInfo {
+  key: string;
+  label: string;
+  memberIds: string[];
+}
+
+/** Resolve each mod family's member stat ids for this game (skips missing). */
+function resolveFamilies(index: StatIndex): Map<string, FamilyInfo> {
+  const byStatId = new Map<string, FamilyInfo>();
+  for (const fam of MOD_FAMILIES) {
+    const memberIds: string[] = [];
+    for (const text of fam.texts) {
+      const entry = index.byText.get(normalizeStatText(text))?.find((e) => e.type === "explicit");
+      if (entry && !memberIds.includes(entry.id)) memberIds.push(entry.id);
+    }
+    if (memberIds.length < 2) continue; // need siblings to be worth expanding
+    const info: FamilyInfo = { key: fam.key, label: fam.label, memberIds };
+    for (const id of memberIds) byStatId.set(id, info);
+  }
+  return byStatId;
 }
 
 export interface TradeStatGroup {
@@ -259,8 +284,24 @@ export async function buildItemQuery(
   const useFracCount = fracMulti.length >= 2;
   const inFracCount = (f: EditableFilter) => useFracCount && f.fractured && !!f.fracturedStatId;
 
-  const andF = filters.filter((f) => f.group === "and" && !inFracCount(f));
-  const countF = filters.filter((f) => f.group === "count" && !inFracCount(f));
+  // Family grouping: pull same-kind mods (resistances, attributes, added dmg,
+  // etc.) into a count group that also carries their disabled siblings.
+  const familyByStatId = resolveFamilies(await getStatIndex(game));
+  const inFamily = new Set<EditableFilter>();
+  const presentByFamily = new Map<string, EditableFilter[]>();
+  for (const f of filters) {
+    if (f.group !== "and" && f.group !== "count") continue;
+    if (inFracCount(f) || f.fractured) continue;
+    const fam = familyByStatId.get(f.statId);
+    if (!fam) continue;
+    const list = presentByFamily.get(fam.key) ?? [];
+    list.push(f);
+    presentByFamily.set(fam.key, list);
+    inFamily.add(f);
+  }
+
+  const andF = filters.filter((f) => f.group === "and" && !inFracCount(f) && !inFamily.has(f));
+  const countF = filters.filter((f) => f.group === "count" && !inFracCount(f) && !inFamily.has(f));
   const notF = filters.filter((f) => f.group === "not" && !inFracCount(f));
 
   const defaultCount = Math.max(1, Math.ceil(countF.length * cfg.fraction));
@@ -288,6 +329,20 @@ export async function buildItemQuery(
   if (useFracCount) {
     stats.push({ type: "count", value: { min: 1 }, filters: fracMulti.map(toStatFilter) });
     strategyParts.push(`any 1 of ${fracMulti.length} fractured`);
+  }
+  // Family count groups: present members enabled, siblings added disabled.
+  for (const [, present] of presentByFamily) {
+    const fam = familyByStatId.get(present[0].statId)!;
+    const presentIds = new Set(present.map((p) => p.statId));
+    const siblings = fam.memberIds
+      .filter((id) => !presentIds.has(id))
+      .map((id) => ({ id, disabled: true }));
+    stats.push({
+      type: "count",
+      value: { min: present.length },
+      filters: [...present.map(toStatFilter), ...siblings],
+    });
+    strategyParts.push(`${fam.label} (${present.length})`);
   }
 
   // Buy-out → "Instant Buyout": status `securable` (supported by both PoE1 & PoE2
