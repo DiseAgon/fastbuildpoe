@@ -424,6 +424,12 @@ export async function buildItemQuery(
 
   // (Buy-out is handled by status `securable` above for both games.)
 
+  // The trade site rejects an empty `stats` array ("search is no longer valid").
+  // Always include at least one (empty) group, like the official site does.
+  if (query.stats.length === 0) {
+    query.stats.push({ type: "and", filters: [] });
+  }
+
   return {
     query,
     matched: filters.length,
