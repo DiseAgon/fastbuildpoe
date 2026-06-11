@@ -160,9 +160,13 @@ export function TradeLinkButton({ item }: { item: ParsedItem }) {
               type="button"
               onClick={() => setShowPanel((v) => !v)}
               aria-expanded={showPanel}
-              className="text-xs text-muted underline-offset-2 hover:text-text hover:underline"
+              className={`flex items-center gap-1 rounded-[6px] border px-2.5 py-1 text-xs font-semibold transition-colors duration-[var(--duration-fast)] ${
+                showPanel
+                  ? "border-accent bg-accent/20 text-accent"
+                  : "border-accent/50 bg-accent/10 text-accent hover:bg-accent/20"
+              }`}
             >
-              {showPanel ? "Hide" : "Customize"}
+              {showPanel ? "▲ Hide mods" : "⚙ Customize mods"}
             </button>
           )}
         </div>

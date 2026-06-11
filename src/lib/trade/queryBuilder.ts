@@ -178,24 +178,20 @@ async function autoComputed(
     const base = await getWeaponBase(game, item.baseType);
     if (base) {
       const dps = computeWeaponDps(item, base);
-      const rows: Array<[string, string, number, boolean]> = [
-        ["dps", "Total DPS", dps.dps, true],
-        ["pdps", "Phys DPS", dps.pdps, false],
-        ["edps", "Ele DPS", dps.edps, false],
-        ["aps", "Attacks/sec", dps.aps, false],
-        ["crit", "Crit %", dps.crit, false],
+      // Decimal band for small values (aps/crit); integer band for DPS.
+      const decBand = (v: number) => Math.round(v * factor * 10) / 10;
+      // Default to the *specific* DPS the weapon actually has (phys/ele) plus
+      // attack speed and crit; Total DPS is available but off by default.
+      const rows: Array<[string, string, number, number | null, boolean]> = [
+        ["pdps", "Phys DPS", dps.pdps, band(dps.pdps, factor), true],
+        ["edps", "Ele DPS", dps.edps, band(dps.edps, factor), true],
+        ["aps", "Attacks/sec", dps.aps, decBand(dps.aps), true],
+        ["crit", "Crit %", dps.crit, decBand(dps.crit), true],
+        ["dps", "Total DPS", dps.dps, band(dps.dps, factor), false],
       ];
-      for (const [field, label, value, include] of rows) {
+      for (const [field, label, value, min, include] of rows) {
         if (value > 0) {
-          out.push({
-            field,
-            label,
-            group: "weapon",
-            itemValue: value,
-            min: field === "aps" || field === "crit" ? null : band(value, factor),
-            max: null,
-            include,
-          });
+          out.push({ field, label, group: "weapon", itemValue: value, min, max: null, include });
         }
       }
     }
@@ -259,7 +255,11 @@ export async function buildItemQuery(
     strategyParts.push(`${notF.length} excluded`);
   }
 
-  const query: TradeQuery = { status: { option: "online" }, stats, filters: {} };
+  // Buy-out → "Instant Buyout". PoE2 uses status `securable`; PoE1 has no
+  // instant-buyout status, so it uses the priced sale_type instead.
+  const buyout = overrides?.buyout ?? true;
+  const statusOption = buyout && game === "poe2" ? "securable" : "online";
+  const query: TradeQuery = { status: { option: statusOption }, stats, filters: {} };
   const useBase = overrides?.useBase ?? true;
 
   if (item.category === "gem") {
@@ -327,8 +327,8 @@ export async function buildItemQuery(
     query.filters.misc_filters = misc;
   }
 
-  // Default to instant buy-out: only listings with a fixed price.
-  if (overrides?.buyout ?? true) {
+  // PoE1 buy-out: restrict to listings with a fixed price (PoE2 uses `securable`).
+  if (buyout && game === "poe1") {
     query.filters.trade_filters = { filters: { sale_type: { option: "priced" } } };
   }
 
