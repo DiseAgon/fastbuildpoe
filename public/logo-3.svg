@@ -1,0 +1,6 @@
+<svg width="128" height="128" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Concept 3: Faceted gem (PoE item/jewel) with a bolt cut -->
+  <path d="M16 23 L24 12 H40 L48 23 L32 54 Z" fill="#1d1a12" stroke="#d9a441" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M16 23 H48 M24 12 L32 23 L40 12 M16 23 L32 54 L48 23" stroke="#d9a441" stroke-width="1" opacity="0.45"/>
+  <path d="M35 22 L26 35 H32 L30 47 L40 31 H34 Z" fill="#d9a441"/>
+</svg>

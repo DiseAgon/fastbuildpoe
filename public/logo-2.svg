@@ -1,0 +1,6 @@
+<svg width="128" height="128" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Concept 2: Bolt through a currency orb (fast + price/currency) -->
+  <circle cx="32" cy="32" r="26" fill="#17140e" stroke="#d9a441" stroke-width="3"/>
+  <circle cx="32" cy="32" r="26" fill="none" stroke="#d9a441" stroke-width="1" opacity="0.35" transform="scale(0.78)" transform-origin="32 32"/>
+  <path d="M37 13 L20 34 H29 L27 51 L44 30 H35 Z" fill="#d9a441"/>
+</svg>
