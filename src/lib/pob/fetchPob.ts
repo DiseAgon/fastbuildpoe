@@ -37,9 +37,9 @@ async function fetchPobbinRaw(id: string): Promise<string> {
   // pobb.in fetches from a datacenter IP (Vercel) are occasionally flaky;
   // retry a couple of times with a timeout before giving up.
   let lastError = "";
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 9000);
+    const timer = setTimeout(() => controller.abort(), 8000);
     try {
       res = await fetch(`https://pobb.in/${id}/raw`, {
         headers: { "User-Agent": USER_AGENT, Accept: "text/plain" },

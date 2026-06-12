@@ -24,6 +24,53 @@ const GAMES = {
   poe2: "https://www.pathofexile.com/api/trade2",
 };
 
+const POB_REPO = {
+  poe1: "PathOfBuildingCommunity/PathOfBuilding",
+  poe2: "PathOfBuildingCommunity/PathOfBuilding-PoE2",
+};
+const WEAPON_FILES = [
+  "axe", "bow", "claw", "crossbow", "dagger", "flail", "mace", "spear",
+  "staff", "sword", "oneswd", "twoswd", "onemace", "twomace", "oneaxe", "twoaxe",
+];
+
+function luaNum(block, key) {
+  const m = block.match(new RegExp(`${key}\\s*=\\s*(\\d+(?:\\.\\d+)?)`));
+  return m ? Number(m[1]) : null;
+}
+
+async function snapshotWeapons(game) {
+  const repo = POB_REPO[game];
+  const bases = {};
+  for (const file of WEAPON_FILES) {
+    let text;
+    try {
+      const res = await fetch(
+        `https://raw.githubusercontent.com/${repo}/dev/src/Data/Bases/${file}.lua`,
+        { headers: { "User-Agent": UA } },
+      );
+      if (!res.ok) continue;
+      text = await res.text();
+    } catch {
+      continue;
+    }
+    for (const chunk of text.split('itemBases["').slice(1)) {
+      const nameEnd = chunk.indexOf('"]');
+      if (nameEnd === -1) continue;
+      const name = chunk.slice(0, nameEnd);
+      const wm = chunk.match(/weapon\s*=\s*\{([^}]*)\}/);
+      if (!wm) continue;
+      const physMin = luaNum(wm[1], "PhysicalMin");
+      const physMax = luaNum(wm[1], "PhysicalMax");
+      const aps = luaNum(wm[1], "AttackRateBase");
+      const crit = luaNum(wm[1], "CritChanceBase");
+      if (physMin === null || physMax === null || aps === null) continue;
+      bases[name] = { physMin, physMax, aps, crit: crit ?? 0 };
+    }
+  }
+  writeFileSync(join(OUT, `weapons.${game}.json`), JSON.stringify(bases));
+  return Object.keys(bases).length;
+}
+
 async function getJson(url) {
   const res = await fetch(url, { headers: HEADERS });
   if (!res.ok) throw new Error(`${res.status} ${url}`);
@@ -64,5 +111,8 @@ for (const [game, base] of Object.entries(GAMES)) {
     JSON.stringify({ leagues, defaultLeague: pickDefaultLeague(leagues), divineIcon }, null, 0),
   );
 
-  console.log(`${game}: ${entries.length} stats, ${leagues.length} leagues, divine=${!!divineIcon}`);
+  const weaponCount = await snapshotWeapons(game);
+  console.log(
+    `${game}: ${entries.length} stats, ${leagues.length} leagues, divine=${!!divineIcon}, ${weaponCount} weapon bases`,
+  );
 }
