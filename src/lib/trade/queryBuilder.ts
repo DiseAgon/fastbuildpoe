@@ -81,6 +81,8 @@ export interface QueryOverrides {
   buyout?: boolean;
   /** Constrain to the item's base type (default true). */
   useBase?: boolean;
+  /** Gem search options (min level/quality/sockets). null = omit that filter. */
+  gem?: { level: number | null; quality: number | null; sockets: number | null };
 }
 
 export interface TradeStatFilter {
@@ -363,10 +365,13 @@ export async function buildItemQuery(
   if (item.category === "gem") {
     query.type = item.name;
     const gemFilters: Record<string, unknown> = {};
-    if (mode !== "budget") {
-      if (item.gemLevel) gemFilters.gem_level = { min: item.gemLevel };
-      if (item.quality) gemFilters.quality = { min: item.quality };
-    }
+    const g = overrides?.gem;
+    const level = g ? g.level : mode !== "budget" ? item.gemLevel ?? null : null;
+    const quality = g ? g.quality : mode !== "budget" ? item.quality ?? null : null;
+    const sockets = g ? g.sockets : null;
+    if (level !== null) gemFilters.gem_level = { min: level };
+    if (quality !== null) gemFilters.quality = { min: quality };
+    if (sockets !== null) gemFilters.gem_sockets = { min: sockets };
     query.filters.misc_filters = { filters: gemFilters };
   } else if (item.rarity === "unique") {
     query.name = item.name;

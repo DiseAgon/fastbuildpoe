@@ -217,9 +217,13 @@ export default function Home() {
   return (
     <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 sm:px-6">
       <header className="flex flex-wrap items-center justify-between gap-4 py-6">
-        <div>
-          <h1 className="font-serif text-2xl text-accent">FastBuildPOE</h1>
-          <p className="text-sm text-muted">Trade-search links for every item in a build.</p>
+        <div className="flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-1.svg" alt="FastBuildPOE logo" width={40} height={40} className="h-10 w-10" />
+          <div>
+            <h1 className="font-serif text-2xl text-accent">FastBuildPOE</h1>
+            <p className="text-sm text-muted">Trade-search links for every item in a build.</p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

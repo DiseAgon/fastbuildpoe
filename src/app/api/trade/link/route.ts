@@ -83,6 +83,13 @@ const RequestBody = z.object({
   pseudo: z.array(PseudoSchema).optional(),
   buyout: z.boolean().optional(),
   useBase: z.boolean().optional(),
+  gem: z
+    .object({
+      level: z.number().nullable(),
+      quality: z.number().nullable(),
+      sockets: z.number().nullable(),
+    })
+    .optional(),
 });
 
 export async function POST(request: Request) {
@@ -116,6 +123,7 @@ export async function POST(request: Request) {
       pseudo: parsed.data.pseudo,
       buyout: parsed.data.buyout,
       useBase: parsed.data.useBase,
+      gem: parsed.data.gem,
     };
     const [resolvedLeague, built] = await Promise.all([
       parsed.data.league

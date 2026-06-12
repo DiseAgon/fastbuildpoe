@@ -10,6 +10,7 @@ import {
 import { useBuild } from "./BuildContext";
 import { DivineIcon } from "./DivineIcon";
 import { TradeLinkButton } from "./TradeLinkButton";
+import { GemTradeControls } from "./GemTradeControls";
 
 export function ItemCard({ item, number }: { item: ParsedItem; number: number }) {
   const { getPrice, setPrice, keyFor } = useBuild();
@@ -105,7 +106,7 @@ export function ItemCard({ item, number }: { item: ParsedItem; number: number })
           />
           <DivineIcon />
         </div>
-        <TradeLinkButton item={item} />
+        {isGem ? <GemTradeControls item={item} /> : <TradeLinkButton item={item} />}
       </div>
     </article>
   );
