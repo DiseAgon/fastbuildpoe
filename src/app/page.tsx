@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ImportForm } from "@/components/import/ImportForm";
 import { SignInPoe } from "@/components/import/SignInPoe";
+import { HowToUse } from "@/components/HowToUse";
 import { CategorySection } from "@/components/build/CategorySection";
 import { GemSection } from "@/components/build/GemSection";
 import { BuildProvider, formatDivine, useBuild } from "@/components/build/BuildContext";
@@ -260,6 +261,7 @@ export default function Home() {
         onPriceChange={setPrice}
       >
         <main className="flex flex-1 flex-col gap-8 pb-16">
+          <HowToUse />
           <section
             aria-label="Import a build"
             className="rounded-[var(--radius)] border border-border bg-surface/60 p-5"
