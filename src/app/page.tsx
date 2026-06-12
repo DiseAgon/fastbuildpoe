@@ -50,6 +50,7 @@ export default function Home() {
   const [activeSetIds, setActiveSetIds] = useState<ByGame<string>>(emptyByGame(""));
   const [meta, setMeta] = useState<ByGame<TradeMeta | null>>(emptyByGame(null));
   const [leagues, setLeagues] = useState<ByGame<string>>(emptyByGame(""));
+  const [customLeague, setCustomLeague] = useState(false);
   const [inputs, setInputs] = useState<ByGame<string>>(emptyByGame(""));
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -162,6 +163,7 @@ export default function Home() {
   function switchGame(id: GameId) {
     setGame(id);
     setError(null);
+    setCustomLeague(false);
   }
 
   const total = view
@@ -203,23 +205,50 @@ export default function Home() {
             ))}
           </div>
 
-          <label className="sr-only" htmlFor="league-input">
+          <label className="sr-only" htmlFor="league-select">
             League
           </label>
-          <input
-            id="league-input"
-            list="league-options"
-            value={league}
-            placeholder={gameMeta ? "League" : "Loading…"}
-            onChange={(e) => setLeagues((prev) => ({ ...prev, [game]: e.target.value }))}
-            className="w-44 rounded-full border border-border bg-surface px-3 py-1.5 text-sm text-text outline-none transition-colors focus:border-accent"
-            title="Pick a league or type one (e.g. a private/event league)"
-          />
-          <datalist id="league-options">
-            {gameMeta?.leagues.map((l) => (
-              <option key={l} value={l} />
-            ))}
-          </datalist>
+          {!gameMeta ? (
+            <span className="text-sm text-muted">Loading…</span>
+          ) : customLeague ? (
+            <span className="flex items-center gap-1">
+              <input
+                value={league}
+                autoFocus
+                placeholder="Type league"
+                onChange={(e) => setLeagues((prev) => ({ ...prev, [game]: e.target.value }))}
+                className="w-40 rounded-full border border-border bg-surface px-3 py-1.5 text-sm text-text outline-none focus:border-accent"
+              />
+              <button
+                type="button"
+                onClick={() => setCustomLeague(false)}
+                title="Back to league list"
+                className="rounded-full border border-border px-2 py-1.5 text-xs text-muted hover:text-text"
+              >
+                ≡
+              </button>
+            </span>
+          ) : (
+            <select
+              id="league-select"
+              value={gameMeta.leagues.includes(league) ? league : "__custom__"}
+              onChange={(e) => {
+                if (e.target.value === "__custom__") {
+                  setCustomLeague(true);
+                } else {
+                  setLeagues((prev) => ({ ...prev, [game]: e.target.value }));
+                }
+              }}
+              className="rounded-full border border-border bg-surface px-3 py-1.5 text-sm text-text outline-none transition-colors focus:border-accent"
+            >
+              {gameMeta.leagues.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+              <option value="__custom__">Custom…</option>
+            </select>
+          )}
         </div>
       </header>
 
