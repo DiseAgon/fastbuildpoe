@@ -9,6 +9,7 @@ import { GemSection } from "@/components/build/GemSection";
 import { BuildProvider, formatDivine, useBuild } from "@/components/build/BuildContext";
 import { DivineIcon } from "@/components/build/DivineIcon";
 import { ShareButton } from "@/components/build/ShareButton";
+import { ExportPobButton } from "@/components/build/ExportPobButton";
 import { GAME_IDS, GAMES, type GameId } from "@/lib/game/registry";
 import type { ItemSetView, ParsedBuild, ParsedItem } from "@/types/item";
 import type { TradeMeta } from "@/lib/trade/meta";
@@ -299,6 +300,7 @@ export default function Home() {
                       league={league}
                       prices={prices}
                     />
+                    <ExportPobButton view={view} input={inputs[game]} />
                     <span className="text-muted">
                       {total} item{total === 1 ? "" : "s"}
                       {build.skipped > 0 ? ` · ${build.skipped} skipped` : ""}
