@@ -13,7 +13,15 @@ import { ExportPobButton } from "@/components/build/ExportPobButton";
 import { GAME_IDS, GAMES, type GameId } from "@/lib/game/registry";
 import type { ItemSetView, ParsedBuild, ParsedItem } from "@/types/item";
 import type { TradeMeta } from "@/lib/trade/meta";
-import { decodeShare } from "@/lib/share";
+import { decodeShare, type SharePayload } from "@/lib/share";
+import { SavedPanel } from "@/components/SavedPanel";
+import {
+  addSession,
+  clearSessions,
+  loadSessions,
+  removeSession,
+  type SavedSession,
+} from "@/lib/sessions";
 
 interface ImportResponse {
   success: boolean;
@@ -57,6 +65,12 @@ export default function Home() {
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sessions, setSessions] = useState<SavedSession[]>([]);
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  useEffect(() => {
+    setSessions(loadSessions());
+  }, []);
 
   const setPrice = useCallback(
     (key: string, value: string) => setPrices((prev) => ({ ...prev, [key]: value })),
@@ -143,24 +157,48 @@ export default function Home() {
     setError(null);
   }, []);
 
+  const restoreFromPayload = useCallback(
+    (payload: SharePayload) => {
+      setPrices((prev) => ({ ...prev, ...payload.prices }));
+      setLeagues((prev) => ({ ...prev, [payload.game]: payload.league }));
+      setGame(payload.game);
+      setCustomLeague(false);
+      setPanelOpen(false);
+      if (payload.input) {
+        void importInput(payload.input).then((b) => {
+          if (b) setActiveSetIds((prev) => ({ ...prev, [b.game]: payload.setId }));
+        });
+      }
+    },
+    [importInput],
+  );
+
   // Restore a shared session from the URL hash (#s=...) once on mount.
   useEffect(() => {
     if (typeof window === "undefined" || !window.location.hash.startsWith("#s=")) return;
-    let payload;
     try {
-      payload = decodeShare(window.location.hash.slice(3));
+      restoreFromPayload(decodeShare(window.location.hash.slice(3)));
     } catch {
-      return;
+      /* ignore bad payload */
     }
-    setPrices((prev) => ({ ...prev, ...payload.prices }));
-    setLeagues((prev) => ({ ...prev, [payload.game]: payload.league }));
-    setGame(payload.game);
-    if (payload.input) {
-      void importInput(payload.input).then((b) => {
-        if (b) setActiveSetIds((prev) => ({ ...prev, [b.game]: payload.setId }));
-      });
-    }
-  }, [importInput]);
+  }, [restoreFromPayload]);
+
+  function saveCurrent() {
+    const input = inputs[game];
+    if (!input || !build) return;
+    const gamePrices = Object.fromEntries(
+      Object.entries(prices).filter(([k, v]) => k.startsWith(`${game}|`) && v !== ""),
+    );
+    const total = Object.values(gamePrices).reduce((t, v) => {
+      const n = Number.parseFloat(v);
+      return t + (Number.isFinite(n) ? n : 0);
+    }, 0);
+    const payload: SharePayload = { v: 1, game, input, setId: activeSetId, league, prices: gamePrices };
+    const label = `${build.className ?? "Build"}${build.ascendancy ? ` · ${build.ascendancy}` : ""}`;
+    setSessions(
+      addSession({ id: `${game}|${input}`, savedAt: Date.now(), label, game, total, payload }),
+    );
+  }
 
   function switchGame(id: GameId) {
     setGame(id);
@@ -251,6 +289,15 @@ export default function Home() {
               <option value="__custom__">Custom…</option>
             </select>
           )}
+
+          <button
+            type="button"
+            onClick={() => setPanelOpen(true)}
+            className="rounded-full border border-border bg-surface px-3 py-1.5 text-sm text-muted transition-colors hover:border-accent/50 hover:text-accent"
+            title="Your saved builds"
+          >
+            Saved ({sessions.length})
+          </button>
         </div>
       </header>
 
@@ -305,6 +352,16 @@ export default function Home() {
                       input={inputs[game]}
                       title={`${build.className ?? "Build"} — FastBuildPOE prices`}
                     />
+                    {inputs[game] && (
+                      <button
+                        type="button"
+                        onClick={saveCurrent}
+                        className="rounded-[var(--radius)] border border-border bg-surface px-3 py-1 text-sm text-muted transition-colors hover:border-accent/50 hover:text-accent"
+                        title="Save this build + prices to your browser"
+                      >
+                        Save
+                      </button>
+                    )}
                     <span className="text-muted">
                       {total} item{total === 1 ? "" : "s"}
                       {build.skipped > 0 ? ` · ${build.skipped} skipped` : ""}
@@ -356,6 +413,15 @@ export default function Home() {
           )}
         </main>
       </BuildProvider>
+
+      <SavedPanel
+        open={panelOpen}
+        onClose={() => setPanelOpen(false)}
+        sessions={sessions}
+        onLoad={(s) => restoreFromPayload(s.payload)}
+        onDelete={(id) => setSessions(removeSession(id))}
+        onClear={() => setSessions(clearSessions())}
+      />
     </div>
   );
 }
