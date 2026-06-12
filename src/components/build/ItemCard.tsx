@@ -43,17 +43,23 @@ export function ItemCard({ item, number }: { item: ParsedItem; number: number })
             </p>
           )}
         </div>
-        {item.slot && (
-          <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-            {item.slot}
+        {isGem ? (
+          <span className="shrink-0 rounded-md border border-rarity-gem/50 bg-rarity-gem/10 px-2 py-0.5 text-xs font-semibold text-rarity-gem">
+            Lv {item.gemLevel ?? "?"}
+            {item.quality ? ` · Q${item.quality}%` : ""}
           </span>
+        ) : (
+          item.slot && (
+            <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted">
+              {item.slot}
+            </span>
+          )
         )}
       </header>
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 px-4 pt-3 text-xs text-muted">
-        {isGem && item.gemLevel !== undefined && <span>Level {item.gemLevel}</span>}
-        {item.itemLevel !== undefined && <span>iLvl {item.itemLevel}</span>}
-        {item.quality ? <span>Q {item.quality}%</span> : null}
+        {!isGem && item.itemLevel !== undefined && <span>iLvl {item.itemLevel}</span>}
+        {!isGem && item.quality ? <span>Q {item.quality}%</span> : null}
         {item.sockets && <span>{item.sockets}</span>}
         {item.corrupted && <span className="text-red-400">Corrupted</span>}
       </div>

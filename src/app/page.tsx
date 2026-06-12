@@ -300,7 +300,11 @@ export default function Home() {
                       league={league}
                       prices={prices}
                     />
-                    <ExportPobButton view={view} input={inputs[game]} />
+                    <ExportPobButton
+                      view={view}
+                      input={inputs[game]}
+                      title={`${build.className ?? "Build"} — FastBuildPOE prices`}
+                    />
                     <span className="text-muted">
                       {total} item{total === 1 ? "" : "s"}
                       {build.skipped > 0 ? ` · ${build.skipped} skipped` : ""}
