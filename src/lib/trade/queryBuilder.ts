@@ -191,8 +191,9 @@ async function autoFilters(
       min: exact ? (roll ?? null) : hit.negated ? null : bandedMin(roll, cfg.factor),
       max: exact ? (roll ?? null) : null,
       group: cfg.group,
-      // Pre-check the toggle if the build's own mod is already fractured.
-      fractured: mod.type === "fractured" && !!fracturedEntry,
+      // Default off: search the mod normally (matches fractured or not). The
+      // Frac toggle stays available for users who specifically want fractured.
+      fractured: false,
       fracturedStatId: fracturedEntry?.id ?? null,
     });
   }
