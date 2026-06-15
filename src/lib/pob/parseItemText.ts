@@ -242,6 +242,11 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
 
     const cleaned = line.replace(ANNOTATION, "").trim();
     if (cleaned === "") continue;
+    // Skip affix-detail / metadata lines that some exports interleave with mods
+    // (e.g. "Prefix:", "Suffix:", "Unique ID:") — they'd otherwise show as junk.
+    if (asMeta(line) !== null) continue;
+    // Skip stray "null"/placeholder lines.
+    if (/^null$/i.test(cleaned)) continue;
 
     const isImplicit = modIndex < implicitCount;
     mods.push(toMod(line, isImplicit));

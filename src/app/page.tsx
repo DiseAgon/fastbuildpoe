@@ -15,6 +15,7 @@ import type { ItemSetView, ParsedBuild, ParsedItem } from "@/types/item";
 import type { TradeMeta } from "@/lib/trade/meta";
 import { decodeShare, type SharePayload } from "@/lib/share";
 import { SavedPanel } from "@/components/SavedPanel";
+import { FeedbackButton } from "@/components/FeedbackButton";
 import {
   addSession,
   clearSessions,
@@ -417,6 +418,13 @@ export default function Home() {
           )}
         </main>
       </BuildProvider>
+
+      <footer className="mt-auto border-t border-border/60 py-6 text-center text-xs text-muted">
+        <FeedbackButton />
+        <p className="mt-2">
+          Fan-made tool — not affiliated with Grinding Gear Games. Prices are user-entered.
+        </p>
+      </footer>
 
       <SavedPanel
         open={panelOpen}
