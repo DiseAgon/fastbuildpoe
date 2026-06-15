@@ -112,7 +112,20 @@ for (const [game, base] of Object.entries(GAMES)) {
   );
 
   const weaponCount = await snapshotWeapons(game);
+
+  // Valid gem type names (so we don't generate "Unknown item base type" links).
+  let gemTypes = [];
+  try {
+    const items = await getJson(`${base}/data/items`);
+    gemTypes = (items.result ?? [])
+      .filter((g) => /gem/i.test(g.label ?? ""))
+      .flatMap((g) => (g.entries ?? []).map((e) => e.type))
+      .filter(Boolean);
+    gemTypes = [...new Set(gemTypes)];
+  } catch {}
+  writeFileSync(join(OUT, `gemtypes.${game}.json`), JSON.stringify(gemTypes));
+
   console.log(
-    `${game}: ${entries.length} stats, ${leagues.length} leagues, divine=${!!divineIcon}, ${weaponCount} weapon bases`,
+    `${game}: ${entries.length} stats, ${leagues.length} leagues, divine=${!!divineIcon}, ${weaponCount} weapon bases, ${gemTypes.length} gem types`,
   );
 }
