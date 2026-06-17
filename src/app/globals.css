@@ -7,23 +7,23 @@
    Palette in oklch for perceptual consistency; rarity colors match the game.
 ---------------------------------------------------------------------------- */
 :root {
-  /* Brighter, blue-tinted dark base */
-  --color-bg: oklch(21% 0.028 245);
-  --color-surface: oklch(26% 0.03 245);
-  --color-surface-raised: oklch(31% 0.032 245);
-  --color-border: oklch(42% 0.04 240);
-  --color-text: oklch(95% 0.012 230);
-  --color-text-muted: oklch(74% 0.03 235);
-  /* Green primary + blue secondary accents */
-  --color-accent: oklch(78% 0.17 162); /* vivid green */
-  --color-accent-soft: oklch(70% 0.14 178); /* teal */
-  --color-accent-2: oklch(72% 0.16 245); /* vivid blue */
+  /* Light, airy base */
+  --color-bg: oklch(97% 0.008 235);
+  --color-surface: oklch(99.5% 0.003 235);
+  --color-surface-raised: oklch(94.5% 0.012 235);
+  --color-border: oklch(88% 0.014 240);
+  --color-text: oklch(30% 0.025 255);
+  --color-text-muted: oklch(52% 0.03 250);
+  /* Green primary + blue secondary, darkened for contrast on light */
+  --color-accent: oklch(56% 0.16 162); /* green */
+  --color-accent-soft: oklch(50% 0.13 175); /* teal */
+  --color-accent-2: oklch(54% 0.17 250); /* blue */
 
-  --rarity-normal: oklch(86% 0 0);
-  --rarity-magic: oklch(74% 0.17 262);
-  --rarity-rare: oklch(88% 0.16 100);
-  --rarity-unique: oklch(66% 0.15 52);
-  --rarity-gem: oklch(78% 0.13 190);
+  --rarity-normal: oklch(45% 0 0);
+  --rarity-magic: oklch(50% 0.18 262);
+  --rarity-rare: oklch(52% 0.14 92);
+  --rarity-unique: oklch(50% 0.15 52);
+  --rarity-gem: oklch(50% 0.12 190);
 
   --font-serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino,
     Georgia, "Times New Roman", serif;
@@ -45,15 +45,15 @@ body {
 }
 
 body {
-  /* subtle atmospheric glow (green→blue) so the page does not read as flat */
+  /* subtle green→blue tint so the page does not read as flat white */
   background-image: radial-gradient(
-    100% 70% at 15% -10%,
-    oklch(40% 0.12 165 / 0.22),
+    90% 60% at 12% -10%,
+    oklch(80% 0.12 165 / 0.35),
     transparent 55%
   ),
   radial-gradient(
-    100% 70% at 90% -10%,
-    oklch(45% 0.13 250 / 0.22),
+    90% 60% at 92% -10%,
+    oklch(80% 0.12 250 / 0.35),
     transparent 55%
   );
   background-attachment: fixed;
