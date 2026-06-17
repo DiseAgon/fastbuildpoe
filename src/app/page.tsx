@@ -422,7 +422,13 @@ export default function Home() {
       </BuildProvider>
 
       <footer className="mt-auto border-t border-border/60 py-6 text-center text-xs text-muted">
-        <FeedbackButton />
+        <div className="flex items-center justify-center gap-3">
+          <a href="https://fastbuildpoe.xyz" className="font-medium text-accent hover:underline">
+            fastbuildpoe.xyz
+          </a>
+          <span aria-hidden>·</span>
+          <FeedbackButton />
+        </div>
         <p className="mt-2">
           Fan-made tool — not affiliated with Grinding Gear Games. Prices are user-entered.
         </p>
