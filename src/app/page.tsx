@@ -222,7 +222,9 @@ export default function Home() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-1.svg" alt="FastBuildPOE logo" width={40} height={40} className="h-10 w-10" />
           <div>
-            <h1 className="font-serif text-2xl text-accent">FastBuildPOE</h1>
+            <h1 className="bg-gradient-to-r from-accent to-accent-2 bg-clip-text font-serif text-2xl font-bold text-transparent">
+              FastBuildPOE
+            </h1>
             <p className="text-sm text-muted">Trade-search links for every item in a build.</p>
           </div>
         </div>

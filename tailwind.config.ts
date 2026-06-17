@@ -13,6 +13,7 @@ const config: Config = {
         muted: "var(--color-text-muted)",
         accent: "var(--color-accent)",
         "accent-soft": "var(--color-accent-soft)",
+        "accent-2": "var(--color-accent-2)",
         rarity: {
           normal: "var(--rarity-normal)",
           magic: "var(--rarity-magic)",

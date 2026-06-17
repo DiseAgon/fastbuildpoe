@@ -7,20 +7,23 @@
    Palette in oklch for perceptual consistency; rarity colors match the game.
 ---------------------------------------------------------------------------- */
 :root {
-  --color-bg: oklch(16% 0.012 70);
-  --color-surface: oklch(20% 0.014 68);
-  --color-surface-raised: oklch(24% 0.016 66);
-  --color-border: oklch(32% 0.018 64);
-  --color-text: oklch(90% 0.012 80);
-  --color-text-muted: oklch(68% 0.014 75);
-  --color-accent: oklch(78% 0.12 78); /* parchment gold */
-  --color-accent-soft: oklch(64% 0.09 78);
+  /* Brighter, blue-tinted dark base */
+  --color-bg: oklch(21% 0.028 245);
+  --color-surface: oklch(26% 0.03 245);
+  --color-surface-raised: oklch(31% 0.032 245);
+  --color-border: oklch(42% 0.04 240);
+  --color-text: oklch(95% 0.012 230);
+  --color-text-muted: oklch(74% 0.03 235);
+  /* Green primary + blue secondary accents */
+  --color-accent: oklch(78% 0.17 162); /* vivid green */
+  --color-accent-soft: oklch(70% 0.14 178); /* teal */
+  --color-accent-2: oklch(72% 0.16 245); /* vivid blue */
 
-  --rarity-normal: oklch(82% 0 0);
-  --rarity-magic: oklch(70% 0.16 268);
-  --rarity-rare: oklch(86% 0.16 100);
-  --rarity-unique: oklch(58% 0.14 52);
-  --rarity-gem: oklch(72% 0.12 190);
+  --rarity-normal: oklch(86% 0 0);
+  --rarity-magic: oklch(74% 0.17 262);
+  --rarity-rare: oklch(88% 0.16 100);
+  --rarity-unique: oklch(66% 0.15 52);
+  --rarity-gem: oklch(78% 0.13 190);
 
   --font-serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino,
     Georgia, "Times New Roman", serif;
@@ -42,11 +45,16 @@ body {
 }
 
 body {
-  /* subtle atmospheric vignette so the page does not read as flat */
+  /* subtle atmospheric glow (green→blue) so the page does not read as flat */
   background-image: radial-gradient(
-    120% 80% at 50% -10%,
-    oklch(24% 0.02 70 / 0.6),
-    transparent 60%
+    100% 70% at 15% -10%,
+    oklch(40% 0.12 165 / 0.22),
+    transparent 55%
+  ),
+  radial-gradient(
+    100% 70% at 90% -10%,
+    oklch(45% 0.13 250 / 0.22),
+    transparent 55%
   );
   background-attachment: fixed;
 }
