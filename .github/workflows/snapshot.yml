@@ -1,0 +1,34 @@
+name: Refresh PoE data snapshot
+
+# Keeps src/data/poe/ (leagues, stats, weapon bases, gem types) current so the
+# deployed app never serves a dead league or misses new-patch mods. Runs every
+# 6 hours around league launches; commit only happens when data changed.
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run snapshot
+        run: node scripts/snapshot.mjs
+      - name: Commit if changed
+        run: |
+          git config user.name "snapshot-bot"
+          git config user.email "actions@github.com"
+          git add src/data/poe
+          if git diff --cached --quiet; then
+            echo "No data changes."
+          else
+            git commit -m "chore: refresh PoE trade data snapshot"
+            git push
+          fi
