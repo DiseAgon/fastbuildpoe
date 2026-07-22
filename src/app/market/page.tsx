@@ -57,13 +57,26 @@ function Sparkline({ data }: { data: Array<number | null> }) {
   );
 }
 
-function LoopBadge({ pct }: { pct: number | null }) {
-  if (pct === null) return <span className="text-xs text-muted">no divine pair</span>;
-  // pct is the profit of divine→chaos→item→divine; the reverse route's profit
-  // is 1/(1+pct) − 1. Show whichever direction is the profitable one.
-  const forward = pct >= 0;
-  const shownPct = forward ? pct : (1 / (1 + pct / 100) - 1) * 100;
-  const strong = shownPct >= 5;
+/**
+ * Both loop directions for a row. Exactly one is non-negative:
+ *  - fwd (D→C→item→D): divine buys chaos, chaos buys item, item sells for divine
+ *  - rev (D→item→C→D): divine buys item, item sells for chaos, chaos buys divine
+ * The same numbers double as conversion edges: fwd > 0 also means C→D converts
+ * cheaper via the item than directly; rev > 0 means D→C pays more via the item.
+ */
+function loopDirections(r: FlipRow, divinePrice: number | null) {
+  if (r.perDivine === null || divinePrice === null || r.chaosRate <= 0) return null;
+  const fwd = (divinePrice / (r.chaosRate * r.perDivine) - 1) * 100;
+  const rev = ((r.chaosRate * r.perDivine) / divinePrice - 1) * 100;
+  return fwd >= rev
+    ? { route: "D→C→item→D", pct: fwd, altRoute: "D→item→C→D", altPct: rev }
+    : { route: "D→item→C→D", pct: rev, altRoute: "D→C→item→D", altPct: fwd };
+}
+
+function LoopBadge({ row, divinePrice }: { row: FlipRow; divinePrice: number | null }) {
+  const best = loopDirections(row, divinePrice);
+  if (!best) return <span className="text-xs text-muted">no divine pair</span>;
+  const strong = best.pct >= 5;
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${
@@ -71,15 +84,84 @@ function LoopBadge({ pct }: { pct: number | null }) {
           ? "border-accent/50 bg-accent/10 text-accent"
           : "border-border bg-surface text-muted"
       }`}
-      title={
-        forward
-          ? "Divine buys chaos → chaos buys item → item sells for divine"
-          : "Divine buys item → item sells for chaos → chaos buys divine"
-      }
+      title={`Best: ${best.route} ${best.pct >= 0 ? "+" : ""}${best.pct.toFixed(2)}% · other direction: ${best.altRoute} ${best.altPct.toFixed(2)}%`}
     >
-      {forward ? "D→C→item→D" : "D→item→C→D"}
-      <span>{shownPct.toFixed(1)}%</span>
+      {best.route}
+      <span>
+        {best.pct >= 0 ? "+" : ""}
+        {best.pct.toFixed(1)}%
+      </span>
     </span>
+  );
+}
+
+/** Top via-item routes for converting between divine and chaos. */
+function BestRoutes({ rows, divinePrice, minVolume }: { rows: FlipRow[]; divinePrice: number | null; minVolume: number }) {
+  if (divinePrice === null) return null;
+  const eligible = rows.filter(
+    (r) => r.perDivine !== null && r.chaosRate > 0 && r.volumeChaos >= minVolume,
+  );
+  // D→C via item: 1 div → perDivine items → perDivine × chaosRate chaos.
+  const dToC = eligible
+    .map((r) => ({ r, chaosOut: r.perDivine! * r.chaosRate }))
+    .filter((x) => x.chaosOut > divinePrice)
+    .sort((a, b) => b.chaosOut - a.chaosOut)
+    .slice(0, 3);
+  // C→D via item: divinePrice chaos would buy divinePrice/chaosRate items,
+  // which convert to divines at perDivine per div → effective chaos cost/div.
+  const cToD = eligible
+    .map((r) => ({ r, chaosCost: r.chaosRate * r.perDivine! }))
+    .filter((x) => x.chaosCost < divinePrice)
+    .sort((a, b) => a.chaosCost - b.chaosCost)
+    .slice(0, 3);
+
+  if (dToC.length === 0 && cToD.length === 0) return null;
+
+  const routeList = (
+    title: string,
+    directLabel: string,
+    entries: Array<{ name: string; detail: string; pct: number }>,
+  ) => (
+    <div className="flex-1 rounded-[var(--radius)] border border-border bg-surface p-4">
+      <p className="text-sm font-medium text-text">{title}</p>
+      <p className="mt-0.5 text-xs text-muted">Direct: {directLabel}</p>
+      <ol className="mt-2 space-y-1">
+        {entries.map((e, i) => (
+          <li key={i} className="flex items-baseline justify-between gap-3 text-sm">
+            <span className="truncate text-text">{e.name}</span>
+            <span className="shrink-0 tabular-nums text-muted">{e.detail}</span>
+            <span className="shrink-0 font-semibold tabular-nums text-accent">
+              +{e.pct.toFixed(2)}%
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+
+  return (
+    <section aria-label="Best conversion routes" className="flex flex-col gap-3 sm:flex-row">
+      {dToC.length > 0 &&
+        routeList(
+          "Best Divine → Chaos (via item)",
+          `1 div = ${fmt(divinePrice, 0)}c`,
+          dToC.map(({ r, chaosOut }) => ({
+            name: `Div → ${r.name} → Chaos`,
+            detail: `1 div ≈ ${fmt(chaosOut, 0)}c`,
+            pct: (chaosOut / divinePrice - 1) * 100,
+          })),
+        )}
+      {cToD.length > 0 &&
+        routeList(
+          "Best Chaos → Divine (via item)",
+          `1 div costs ${fmt(divinePrice, 0)}c`,
+          cToD.map(({ r, chaosCost }) => ({
+            name: `Chaos → ${r.name} → Div`,
+            detail: `1 div ≈ ${fmt(chaosCost, 0)}c`,
+            pct: (divinePrice / chaosCost - 1) * 100,
+          })),
+        )}
+    </section>
   );
 }
 
@@ -134,8 +216,10 @@ export default function MarketPage() {
     const missing = sortDir === "desc" ? -Infinity : Infinity;
     const value = (r: FlipRow): number => {
       switch (sortKey) {
-        case "loopPct":
-          return r.loopPct ?? missing;
+        case "loopPct": {
+          const best = loopDirections(r, board.divinePrice);
+          return best ? best.pct : missing;
+        }
         case "volumeChaos":
           return r.volumeChaos;
         case "trend7d":
@@ -271,6 +355,14 @@ export default function MarketPage() {
         {loading && <p className="text-sm text-muted">Loading market…</p>}
 
         {!loading && board && (
+          <BestRoutes
+            rows={board.rows}
+            divinePrice={board.divinePrice}
+            minVolume={Number.parseFloat(minVolume) || 0}
+          />
+        )}
+
+        {!loading && board && (
           <div className="overflow-x-auto rounded-[var(--radius)] border border-border bg-surface shadow-card">
             <table className="w-full min-w-[760px] border-collapse text-sm">
               <thead>
@@ -322,7 +414,7 @@ export default function MarketPage() {
                       )}
                     </td>
                     <td className="px-4 py-2">
-                      <LoopBadge pct={r.loopPct} />
+                      <LoopBadge row={r} divinePrice={board.divinePrice} />
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums">{fmt(r.volumeChaos, 0)}</td>
                     <td className="px-4 py-2">
