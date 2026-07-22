@@ -305,6 +305,14 @@ export default function Home() {
           >
             Saved ({sessions.length})
           </button>
+
+          <a
+            href="/market"
+            className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:bg-accent/20"
+            title="Currency Exchange flip finder"
+          >
+            Market ↗
+          </a>
         </div>
       </header>
 
