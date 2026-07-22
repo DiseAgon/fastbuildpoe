@@ -59,9 +59,11 @@ function Sparkline({ data }: { data: Array<number | null> }) {
 
 function LoopBadge({ pct }: { pct: number | null }) {
   if (pct === null) return <span className="text-xs text-muted">no divine pair</span>;
-  const abs = Math.abs(pct);
+  // pct is the profit of divine→chaos→item→divine; the reverse route's profit
+  // is 1/(1+pct) − 1. Show whichever direction is the profitable one.
   const forward = pct >= 0;
-  const strong = abs >= 5;
+  const shownPct = forward ? pct : (1 / (1 + pct / 100) - 1) * 100;
+  const strong = shownPct >= 5;
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${
@@ -71,12 +73,12 @@ function LoopBadge({ pct }: { pct: number | null }) {
       }`}
       title={
         forward
-          ? "Buy divines with chaos → buy item with divines → sell item for chaos"
-          : "Buy item with chaos → sell item for divines → sell divines for chaos"
+          ? "Divine buys chaos → chaos buys item → item sells for divine"
+          : "Divine buys item → item sells for chaos → chaos buys divine"
       }
     >
-      {forward ? "C→D→item" : "C→item→D"}
-      <span>{abs.toFixed(1)}%</span>
+      {forward ? "D→C→item→D" : "D→item→C→D"}
+      <span>{shownPct.toFixed(1)}%</span>
     </span>
   );
 }
@@ -158,7 +160,7 @@ export default function MarketPage() {
           <div>
             <h1 className="font-serif text-xl font-bold text-accent">Market Flips</h1>
             <p className="text-sm text-muted">
-              Currency Exchange loop finder — chaos ⇄ divine ⇄ item, all in-game.
+              Currency Exchange loop finder — divine ⇄ chaos ⇄ item, all in-game.
             </p>
           </div>
         </div>
@@ -301,9 +303,10 @@ export default function MarketPage() {
             <p>
               Every item on the Currency Exchange trades on two markets: a <em>chaos pair</em> and a{" "}
               <em>divine pair</em>. When their implied prices diverge, a full loop is profitable
-              before fees — e.g. <strong>C→D→item</strong>: buy divines with chaos, buy the item
-              with divines, sell the item back to chaos. <strong>C→item→D</strong> is the same loop
-              run the other way.
+              before fees — <strong>D→C→item→D</strong>: your divines buy chaos, the chaos buys the
+              item, and the item sells back for more divines than you started with.{" "}
+              <strong>D→item→C→D</strong> is the same loop run the other way (buy the item with
+              divines, sell it for chaos, convert back to divines).
             </p>
             <p>
               The exchange charges <strong>gold</strong> per trade (scaling with trade value), which

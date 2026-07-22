@@ -68,7 +68,12 @@ export interface FlipRow {
   perDivine: number | null;
   /** Chaos-equivalent price of the divine leg (divinePrice / perDivine). */
   divineLegChaos: number | null;
-  /** Profit % for one full chaos→divine→item→chaos loop (negative = reverse loop). */
+  /**
+   * Profit % of one full flip loop, anchored in divines.
+   * Positive: divine→chaos→item→divine (buy chaos with div, buy item with
+   * chaos, sell item back to divines). Negative: the reverse route
+   * (divine→item→chaos→divine) is the profitable one, at |loopPct|%.
+   */
   loopPct: number | null;
   /** Traded volume in chaos-equivalent (liquidity filter). */
   volumeChaos: number;
@@ -157,11 +162,13 @@ export async function getFlipBoard(league: string, type: CxType): Promise<FlipBo
     const perDivine = hasDivineLeg ? line.maxVolumeRate! : null;
     const divineLegChaos =
       perDivine !== null && divinePrice !== null ? divinePrice / perDivine : null;
-    // chaos → divine → item → chaos: spend divinePrice chaos, receive perDivine
-    // items, sell each at chaosRate. Negative = run the loop the other way.
+    // divine → chaos → item → divine: 1 div buys divinePrice chaos, which buys
+    // divinePrice/chaosRate items, which sell back at perDivine items per div.
+    // Factor > 1 means the loop ends with more divines than it started with;
+    // < 1 means the reverse route (divine→item→chaos→divine) is the winner.
     const loopPct =
       perDivine !== null && divinePrice !== null
-        ? ((perDivine * chaosRate) / divinePrice - 1) * 100
+        ? (divinePrice / (chaosRate * perDivine) - 1) * 100
         : null;
 
     const m = meta.get(line.id);
