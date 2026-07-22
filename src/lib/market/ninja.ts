@@ -136,6 +136,111 @@ function divinePriceOf(currency: NinjaOverview | null): number | null {
   return line?.primaryValue && line.primaryValue > 0 ? line.primaryValue : null;
 }
 
+/* ------------------------------------------------------------------------- *
+ * Breakout radar — unique items whose price is accelerating (viral-build
+ * detection). Uniques trade on the trade site, not Faustus, so this uses the
+ * stash-based economy data: price, listing count and a 7-day sparkline.
+ * ------------------------------------------------------------------------- */
+
+const UNIQUE_TYPES = [
+  "UniqueWeapon",
+  "UniqueArmour",
+  "UniqueAccessory",
+  "UniqueFlask",
+  "UniqueJewel",
+] as const;
+
+interface NinjaStashLine {
+  name?: string;
+  icon?: string;
+  baseType?: string | null;
+  chaosValue?: number;
+  divineValue?: number;
+  listingCount?: number;
+  detailsId?: string;
+  sparkLine?: { totalChange?: number | null; data?: Array<number | null> };
+}
+
+export interface BreakoutRow {
+  id: string;
+  name: string;
+  baseType: string | null;
+  icon: string | null;
+  category: string;
+  chaosValue: number;
+  divineValue: number | null;
+  listingCount: number;
+  /** % change over the last day (last sparkline step). */
+  d1: number;
+  /** d1 minus the average daily change of the earlier week — "is it accelerating". */
+  accel: number;
+  trend7d: number | null;
+  sparkline: Array<number | null>;
+  /** Ranking score: recent momentum weighted with acceleration. */
+  score: number;
+}
+
+export interface BreakoutBoard {
+  league: string;
+  rows: BreakoutRow[];
+  fetchedAt: number;
+}
+
+const clampPct = (v: number, limit = 200): number => Math.max(-limit, Math.min(limit, v));
+
+function dailyDeltas(data: Array<number | null>): number[] {
+  const pts = data.filter((d): d is number => d !== null && Number.isFinite(d));
+  const out: number[] = [];
+  for (let i = 1; i < pts.length; i++) out.push(pts[i] - pts[i - 1]);
+  return out;
+}
+
+export async function getBreakoutBoard(league: string): Promise<BreakoutBoard | null> {
+  const results = await Promise.all(
+    UNIQUE_TYPES.map(async (type) => {
+      const params = new URLSearchParams({ league, type });
+      const json = await getJson<{ lines?: NinjaStashLine[] }>(
+        `${NINJA_BASE}/stash/current/item/overview?${params}`,
+      );
+      return { type, lines: json?.lines ?? [] };
+    }),
+  );
+  if (results.every((r) => r.lines.length === 0)) return null;
+
+  const rows: BreakoutRow[] = [];
+  for (const { type, lines } of results) {
+    for (const line of lines) {
+      const chaosValue = line.chaosValue ?? 0;
+      if (!line.name || chaosValue <= 0) continue;
+      const deltas = dailyDeltas(line.sparkLine?.data ?? []);
+      if (deltas.length === 0) continue;
+      const d1 = deltas[deltas.length - 1];
+      const earlier = deltas.slice(0, -1);
+      const base = earlier.length > 0 ? earlier.reduce((a, b) => a + b, 0) / earlier.length : 0;
+      const accel = d1 - base;
+      rows.push({
+        id: line.detailsId ?? `${type}-${line.name}`,
+        name: line.name,
+        baseType: line.baseType ?? null,
+        icon: line.icon ?? null,
+        category: type.replace("Unique", ""),
+        chaosValue,
+        divineValue: line.divineValue ?? null,
+        listingCount: line.listingCount ?? 0,
+        d1,
+        accel,
+        trend7d: line.sparkLine?.totalChange ?? null,
+        sparkline: line.sparkLine?.data ?? [],
+        // Clamp inputs so repricing glitches (thousands of % in a day, common
+        // on Standard between leagues) can't drown out organic 10-100% pumps.
+        score: 0.6 * clampPct(d1) + 0.4 * clampPct(accel),
+      });
+    }
+  }
+  rows.sort((a, b) => b.score - a.score);
+  return { league, rows, fetchedAt: Date.now() };
+}
+
 export async function getFlipBoard(league: string, type: CxType): Promise<FlipBoard | null> {
   const [overview, currency] = await Promise.all([
     getJson<NinjaOverview>(overviewUrl(league, type)),

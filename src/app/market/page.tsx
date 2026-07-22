@@ -273,6 +273,13 @@ export default function MarketPage() {
           >
             ← Build pricer
           </a>
+          <a
+            href="/market/breakouts"
+            className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 font-medium text-accent transition-colors hover:bg-accent/20"
+            title="Uniques with accelerating prices — viral-build detector"
+          >
+            Breakout Radar
+          </a>
           {board && (
             <select
               aria-label="League"
