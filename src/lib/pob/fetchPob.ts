@@ -13,6 +13,30 @@ const USER_AGENT =
 const POBBIN_URL = /pobb\.in\/([A-Za-z0-9_-]+)/i;
 const BARE_ID = /^[A-Za-z0-9_-]{4,20}$/;
 
+/** Short-lived per-instance cache of pobb.in pastes: repeat imports of the
+ * same build (shared links, retries) skip the outbound fetch entirely. */
+const PASTE_CACHE_TTL_MS = 10 * 60 * 1000;
+const PASTE_CACHE_MAX = 100;
+const pasteCache = new Map<string, { body: string; expires: number }>();
+
+function cacheGet(id: string): string | null {
+  const hit = pasteCache.get(id);
+  if (!hit) return null;
+  if (hit.expires < Date.now()) {
+    pasteCache.delete(id);
+    return null;
+  }
+  return hit.body;
+}
+
+function cacheSet(id: string, body: string): void {
+  if (pasteCache.size >= PASTE_CACHE_MAX) {
+    const oldest = pasteCache.keys().next().value;
+    if (oldest !== undefined) pasteCache.delete(oldest);
+  }
+  pasteCache.set(id, { body, expires: Date.now() + PASTE_CACHE_TTL_MS });
+}
+
 export async function resolvePobInput(input: string): Promise<string> {
   const trimmed = input.trim();
   if (!trimmed) {
@@ -33,6 +57,9 @@ export async function resolvePobInput(input: string): Promise<string> {
 }
 
 async function fetchPobbinRaw(id: string): Promise<string> {
+  const cached = cacheGet(id);
+  if (cached) return cached;
+
   let res: Response;
   // pobb.in fetches from a datacenter IP (Vercel) are occasionally flaky;
   // retry a couple of times with a timeout before giving up.
@@ -62,7 +89,10 @@ async function fetchPobbinRaw(id: string): Promise<string> {
     }
 
     const body = (await res.text()).trim();
-    if (body) return body;
+    if (body) {
+      cacheSet(id, body);
+      return body;
+    }
     lastError = `pobb.in build "${id}" was empty.`;
   }
 

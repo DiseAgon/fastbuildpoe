@@ -48,6 +48,8 @@ export interface EditableFilter {
   fractured: boolean;
   /** Fractured stat id for this mod, if one exists (else null → no Frac toggle). */
   fracturedStatId: string | null;
+  /** Trade option id for option-valued stats (min/max don't apply). */
+  option?: number | null;
 }
 
 /** A computed equipment filter — armour defences or weapon DPS. */
@@ -88,7 +90,7 @@ export interface QueryOverrides {
 
 export interface TradeStatFilter {
   id: string;
-  value?: { min?: number; max?: number };
+  value?: { min?: number; max?: number; option?: number };
   /** Present in the group but unchecked on the trade site (sibling family members). */
   disabled?: boolean;
 }
@@ -106,7 +108,9 @@ function resolveFamilies(index: StatIndex): Map<string, FamilyInfo> {
   for (const fam of MOD_FAMILIES) {
     const memberIds: string[] = [];
     for (const text of fam.texts) {
-      const entry = index.byText.get(normalizeStatText(text))?.find((e) => e.type === "explicit");
+      const entry = index.byText
+        .get(normalizeStatText(text))
+        ?.find((c) => c.entry.type === "explicit")?.entry;
       if (entry && !memberIds.includes(entry.id)) memberIds.push(entry.id);
     }
     if (memberIds.length < 2) continue; // need siblings to be worth expanding
@@ -175,29 +179,46 @@ async function autoFilters(
 
   const filters: EditableFilter[] = [];
   let unmatched = 0;
+  let prevTemplate: string | null = null;
   for (const mod of item.mods) {
     const hit = matchMod(index, mod);
     if (!hit) {
-      unmatched++;
+      // Multi-line stats split into two PoB lines (e.g. "…your tree" +
+      // "Passage"): if the joined text matches a stat, the previous filter
+      // already covers this line — don't count it as unmatched.
+      const joined = prevTemplate
+        ? index.byText.get(normalizeStatText(`${prevTemplate} ${mod.template}`))
+        : undefined;
+      prevTemplate = mod.template;
+      if (!joined || joined.length === 0) unmatched++;
       continue;
     }
+    prevTemplate = mod.template;
     const fracturedEntry = index.byText
       .get(normalizeStatText(mod.template))
-      ?.find((e) => e.type === "fractured");
+      ?.find((c) => c.entry.type === "fractured")?.entry;
     // Exact-match families (timeless jewel seeds) lock min = max = roll.
     const exact = families.get(hit.entry.id)?.exact ?? false;
     const roll = mod.values[0];
+    const isOption = hit.option !== undefined;
+    // "reduced X" matches the "increased X" stat with negative values on the
+    // trade side, so "at least this much reduction" is a max, not a min.
+    const negatedMax =
+      hit.negated && roll !== undefined && roll > 0
+        ? -Math.max(1, Math.floor(roll * cfg.factor))
+        : null;
     filters.push({
       statId: hit.entry.id,
       text: mod.text,
-      currentRoll: roll ?? null,
-      min: exact ? (roll ?? null) : hit.negated ? null : bandedMin(roll, cfg.factor),
-      max: exact ? (roll ?? null) : null,
+      currentRoll: isOption ? null : (roll ?? null),
+      min: isOption ? null : exact ? (roll ?? null) : hit.negated ? null : bandedMin(roll, cfg.factor),
+      max: isOption ? null : exact ? (roll ?? null) : negatedMax,
       group: cfg.group,
       // Default off: search the mod normally (matches fractured or not). The
       // Frac toggle stays available for users who specifically want fractured.
       fractured: false,
       fracturedStatId: fracturedEntry?.id ?? null,
+      option: hit.option ?? null,
     });
   }
   return { filters, unmatched };
@@ -260,6 +281,10 @@ function toStatFilter(f: EditableFilter): TradeStatFilter {
   // Use the fractured variant id when the user marked this mod as fractured.
   const id = f.fractured && f.fracturedStatId ? f.fracturedStatId : f.statId;
   const filter: TradeStatFilter = { id };
+  if (f.option !== null && f.option !== undefined) {
+    filter.value = { option: f.option };
+    return filter;
+  }
   const value: { min?: number; max?: number } = {};
   if (f.min !== null && f.min !== undefined) value.min = f.min;
   if (f.max !== null && f.max !== undefined) value.max = f.max;
@@ -435,6 +460,28 @@ export async function buildItemQuery(
   if (pseudoStatFilters.length > 0) {
     stats.push({ type: "and", filters: pseudoStatFilters });
     strategyParts.push(`${pseudoStatFilters.length} total${pseudoStatFilters.length === 1 ? "" : "s"}`);
+  }
+
+  // Influence flags (Shaper/Elder/… items): required for rares searched by
+  // their influenced mods; harmless identity constraint otherwise.
+  const INFLUENCE_KEYS: Record<string, string> = {
+    Shaper: "shaper_item",
+    Elder: "elder_item",
+    Crusader: "crusader_item",
+    Hunter: "hunter_item",
+    Redeemer: "redeemer_item",
+    Warlord: "warlord_item",
+    "Searing Exarch": "searing_item",
+    "Eater of Worlds": "tangled_item",
+  };
+  if (item.influences && item.influences.length > 0 && item.rarity !== "unique") {
+    const misc = query.filters.misc_filters ?? { filters: {} };
+    for (const inf of item.influences) {
+      const key = INFLUENCE_KEYS[inf];
+      if (key) misc.filters[key] = { option: true };
+    }
+    query.filters.misc_filters = misc;
+    strategyParts.push(item.influences.join("+"));
   }
 
   if (mode === "budget") {

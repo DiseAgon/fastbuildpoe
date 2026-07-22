@@ -7,6 +7,8 @@ export interface StatEntry {
   id: string;
   text: string;
   type: string;
+  /** For option-valued stats: the discrete choices the `#` can take. */
+  options?: Array<{ id: number; text: string }>;
 }
 
 /**

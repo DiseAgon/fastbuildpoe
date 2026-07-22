@@ -24,6 +24,36 @@ import { categorize } from "./categorize";
 
 const NUMBER = /[+-]?\d+(?:\.\d+)?/g;
 const ANNOTATION = /\{[^}]*\}/g;
+/** PoB unrolled range: `(10-25)% increased …`, `+(16-24) to …`, `-(20-10)% to …`. */
+const RANGE_SPAN = /(-?)\((\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\)/g;
+
+/**
+ * Resolve PoB `(min-max)` spans into the concrete roll the build uses.
+ * PoB stores the roll position in a `{range:n}` annotation (0..1, default 0.5):
+ * value = min + n·(max-min). A leading `-` outside the parens negates the roll
+ * (e.g. `-(20-10)% to all Elemental Resistances` → -15 at n=0.5).
+ */
+function resolveRangeSpans(text: string, rangePos: number): string {
+  return text.replace(RANGE_SPAN, (_m, sign: string, lo: string, hi: string) => {
+    const min = Number(lo);
+    const max = Number(hi);
+    const raw = min + rangePos * (max - min);
+    const isInt = Number.isInteger(min) && Number.isInteger(max);
+    const value = isInt ? Math.round(raw) : Math.round(raw * 100) / 100;
+    return `${sign === "-" ? -value : value}`;
+  });
+}
+
+/** The roll position from a `{range:n}` annotation, default mid-roll. */
+function rangePosOf(annotations: string[]): number {
+  for (const a of annotations) {
+    if (a.startsWith("range:")) {
+      const n = Number.parseFloat(a.slice("range:".length));
+      if (Number.isFinite(n)) return Math.min(1, Math.max(0, n));
+    }
+  }
+  return 0.5;
+}
 
 /** Metadata keys (lines shaped `Key: value`) that are not mods. */
 const META_KEYS = new Set([
@@ -58,7 +88,13 @@ const META_KEYS = new Set([
   "limited to",
   "crucible",
   "implicit",
+  "crafted",
 ]);
+
+/** Standalone flag lines that are item properties, not mods. */
+const INFLUENCE_LINE =
+  /^(Shaper|Elder|Crusader|Hunter|Redeemer|Warlord|Searing Exarch|Eater of Worlds) Item$/i;
+const FLAG_LINE = /^(Synthesised Item|Fractured Item|Mirrored|Split|Foil Unique(?: \([^)]*\))?)$/i;
 
 /** A line shaped like `Key: value` (used to skip unknown metadata such as `Rune:`). */
 const META_SHAPED = /^[A-Za-z][A-Za-z'/ ]*:\s/;
@@ -107,7 +143,8 @@ function extractAnnotations(line: string): string[] {
 
 function toMod(line: string, isImplicit: boolean): ParsedMod {
   const annotations = extractAnnotations(line);
-  const text = line.replace(ANNOTATION, "").trim();
+  const stripped = line.replace(ANNOTATION, "").trim();
+  const text = resolveRangeSpans(stripped, rangePosOf(annotations));
   const values = (text.match(NUMBER) ?? []).map(Number);
   const template = text.replace(NUMBER, "#");
   return { text, template, values, type: detectModType(annotations, isImplicit) };
@@ -161,8 +198,11 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
   if (heading.length === 0) return null;
   const hasSeparateName = rarity === "rare" || rarity === "unique";
   const name = heading[0];
-  const baseType =
+  let baseType =
     hasSeparateName && heading.length > 1 ? heading[1] : heading[0];
+  // Magic items carry affixes in their single name line ("Turquoise Amulet of
+  // the Fox"). Strip the "of …" suffix so trade `type` gets a real base type.
+  if (rarity === "magic") baseType = baseType.replace(/\s+of\s+.+$/i, "");
 
   // Metadata block.
   let itemLevel: number | undefined;
@@ -172,6 +212,7 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
   let implicitCount = 0;
   let selectedVariant: number | undefined;
   let corrupted = false;
+  const influences: string[] = [];
   const defences: NonNullable<ParsedItem["defences"]> = {};
 
   for (; cursor < body.length; cursor++) {
@@ -216,7 +257,24 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
       continue;
     }
     // Unknown line that still looks like `Key: value` (e.g. `Rune: ...`) → skip.
-    if (META_SHAPED.test(body[cursor].replace(ANNOTATION, "").trim())) continue;
+    const cleanedMeta = body[cursor].replace(ANNOTATION, "").trim();
+    if (META_SHAPED.test(cleanedMeta)) continue;
+    // Bare flag lines ("Shaper Item", "Mirrored", …) appear before Item
+    // Level/Quality/Implicits — record and keep scanning so those still parse.
+    const infMeta = cleanedMeta.match(INFLUENCE_LINE);
+    if (infMeta) {
+      influences.push(infMeta[1]);
+      continue;
+    }
+    if (FLAG_LINE.test(cleanedMeta)) continue;
+    // Uniques with variant bases repeat the base-type line (e.g.
+    // `{variant:2}Two-Toned Boots (…)`) between metadata lines — skip them so
+    // later metadata (Quality, Implicits, …) still gets parsed.
+    const metaVariants = variantIds(extractAnnotations(body[cursor]));
+    if (metaVariants && selectedVariant !== undefined && !metaVariants.includes(selectedVariant)) {
+      continue;
+    }
+    if (cleanedMeta === baseType) continue;
     break; // first real mod
   }
 
@@ -227,11 +285,6 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
 
   for (; cursor < body.length; cursor++) {
     const line = body[cursor];
-    if (/^corrupted$/i.test(line.trim())) {
-      corrupted = true;
-      continue;
-    }
-
     const annotations = extractAnnotations(line);
 
     // Skip variant lines that do not belong to the selected variant.
@@ -242,6 +295,20 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
 
     const cleaned = line.replace(ANNOTATION, "").trim();
     if (cleaned === "") continue;
+    // `Corrupted` may carry annotations (e.g. `{variant:2}Corrupted`), so test
+    // after stripping them and after variant filtering.
+    if (/^corrupted$/i.test(cleaned)) {
+      corrupted = true;
+      continue;
+    }
+    // Item-property flag lines are not mods.
+    const influence = cleaned.match(INFLUENCE_LINE);
+    if (influence) {
+      influences.push(influence[1]);
+      continue;
+    }
+    if (FLAG_LINE.test(cleaned)) continue;
+    if (cleaned === baseType) continue;
     // Skip affix-detail / metadata lines that some exports interleave with mods
     // (e.g. "Prefix:", "Suffix:", "Unique ID:") — they'd otherwise show as junk.
     if (asMeta(line) !== null) continue;
@@ -265,6 +332,7 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
     sockets,
     levelReq,
     defences: Object.keys(defences).length > 0 ? defences : undefined,
+    influences: influences.length > 0 ? influences : undefined,
     corrupted,
     mods,
     unparsed,

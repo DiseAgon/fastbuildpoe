@@ -41,6 +41,8 @@ export interface ParsedItem {
   levelReq?: number;
   /** Computed defences from the item (for equipment-based searching). */
   defences?: { armour?: number; evasion?: number; energyShield?: number; ward?: number };
+  /** Influence flags ("Shaper", "Hunter", "Searing Exarch", …). */
+  influences?: string[];
   corrupted: boolean;
   mods: ParsedMod[];
   /** Mod lines we could not confidently parse — surfaced, never silently dropped. */

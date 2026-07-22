@@ -14,18 +14,38 @@ export function normalizeStatText(text: string): string {
     .replace(/\+/g, "")
     .replace(/-?\d+(?:\.\d+)?/g, "#")
     .replace(/\breduced\b/g, "increased")
+    .replace(/\ban additional\b/g, "# additional")
     .replace(/\s+/g, " ")
     .trim();
 }
 
+/**
+ * Fallback key with plural word endings stripped, so PoB text like
+ * "Totems fire 2 additional Projectiles" still finds the trade stat
+ * "Totems fire # additional Projectile". Applied identically to both sides,
+ * and only consulted when the exact key misses.
+ */
+function singularKey(normalized: string): string {
+  return normalized.replace(/\b([a-z]{3,})s\b/g, "$1");
+}
+
+interface IndexedStat {
+  entry: StatEntry;
+  /** Trade option id when this key came from expanding an option-valued stat. */
+  option?: number;
+}
+
 export interface StatIndex {
-  byText: Map<string, StatEntry[]>;
+  byText: Map<string, IndexedStat[]>;
+  bySingular: Map<string, IndexedStat[]>;
 }
 
 export interface StatMatch {
   entry: StatEntry;
   /** True when the source mod said "reduced" (value should be treated as negative). */
   negated: boolean;
+  /** Trade option id for option-valued stats (e.g. "Only affects Passives in # Ring"). */
+  option?: number;
 }
 
 /** Which trade stat types a parsed mod type may match, in priority order. */
@@ -39,16 +59,49 @@ const TYPE_FAMILY: Partial<Record<ModType, string[]>> = {
 
 const indexCache: Partial<Record<GameId, StatIndex>> = {};
 
+function addKey(map: Map<string, IndexedStat[]>, key: string, value: IndexedStat): void {
+  if (!key) return;
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
+}
+
 function buildIndex(entries: StatEntry[]): StatIndex {
-  const byText = new Map<string, StatEntry[]>();
+  const byText = new Map<string, IndexedStat[]>();
+  const bySingular = new Map<string, IndexedStat[]>();
+
+  const add = (key: string, value: IndexedStat) => {
+    addKey(byText, key, value);
+    addKey(bySingular, singularKey(key), value);
+  };
+
   for (const entry of entries) {
     if (entry.type === "pseudo") continue; // pseudos are applied deliberately, not by text match
-    const key = normalizeStatText(entry.text);
-    const list = byText.get(key);
-    if (list) list.push(entry);
-    else byText.set(key, [entry]);
+
+    // Some stat texts are multi-line (e.g. "…your tree\nPassage" carries the
+    // passive node name). Index the full text and the first line.
+    const keys = new Set<string>([normalizeStatText(entry.text)]);
+    const firstLine = entry.text.split("\n")[0];
+    keys.add(normalizeStatText(firstLine));
+    // Local mods are suffixed "(Local)" on the trade side but not in PoB item
+    // text ("98% increased Armour and Evasion") — index the bare text too.
+    for (const key of [...keys]) {
+      if (key.endsWith(" (local)")) keys.add(key.slice(0, -" (local)".length));
+    }
+    for (const key of keys) add(key, { entry });
+
+    // Option-valued stats ("Only affects Passives in # Ring"): expand each
+    // option into its concrete text so PoB lines match and carry the option id.
+    if (entry.options && entry.text.includes("#")) {
+      for (const opt of entry.options) {
+        add(normalizeStatText(entry.text.replace("#", opt.text)), {
+          entry,
+          option: opt.id,
+        });
+      }
+    }
   }
-  return { byText };
+  return { byText, bySingular };
 }
 
 export async function getStatIndex(game: GameId): Promise<StatIndex> {
@@ -64,18 +117,19 @@ export async function getStatIndex(game: GameId): Promise<StatIndex> {
 /** Find the best stat entry for a parsed mod, or null if unmatched. */
 export function matchMod(index: StatIndex, mod: ParsedMod): StatMatch | null {
   const key = normalizeStatText(mod.template);
-  const entries = index.byText.get(key);
-  if (!entries || entries.length === 0) return null;
+  const candidates =
+    index.byText.get(key) ?? index.bySingular.get(singularKey(key));
+  if (!candidates || candidates.length === 0) return null;
 
   const family = TYPE_FAMILY[mod.type];
-  let entry: StatEntry | undefined;
+  let hit: IndexedStat | undefined;
   if (family) {
     for (const type of family) {
-      entry = entries.find((e) => e.type === type);
-      if (entry) break;
+      hit = candidates.find((c) => c.entry.type === type);
+      if (hit) break;
     }
   }
-  if (!entry) entry = entries.find((e) => e.type === "explicit") ?? entries[0];
+  if (!hit) hit = candidates.find((c) => c.entry.type === "explicit") ?? candidates[0];
 
-  return { entry, negated: /\breduced\b/i.test(mod.text) };
+  return { entry: hit.entry, negated: /\breduced\b/i.test(mod.text), option: hit.option };
 }

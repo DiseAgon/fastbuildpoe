@@ -5,7 +5,13 @@ import crypto from "node:crypto";
  * handshake and the access token in httpOnly cookies. Set SESSION_SECRET in env.
  */
 function secret(): string {
-  return process.env.SESSION_SECRET || "fastbuildpoe-dev-insecure-secret";
+  const env = process.env.SESSION_SECRET;
+  if (env) return env;
+  // A public fallback secret would make session cookies forgeable in prod.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET must be set in production.");
+  }
+  return "fastbuildpoe-dev-insecure-secret";
 }
 
 function hmac(data: string): string {

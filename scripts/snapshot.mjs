@@ -84,11 +84,18 @@ function pickDefaultLeague(leagues) {
 for (const [game, base] of Object.entries(GAMES)) {
   // Stats → flattened {id, text, type}
   const stats = await getJson(`${base}/data/stats`);
-  const entries = (stats.result ?? []).flatMap((g) => g.entries ?? []).map((e) => ({
-    id: e.id,
-    text: e.text,
-    type: e.type,
-  }));
+  const entries = (stats.result ?? []).flatMap((g) => g.entries ?? []).map((e) => {
+    const entry = { id: e.id, text: e.text, type: e.type };
+    // Keep discrete options for option-valued stats (e.g. "… in # Ring") so the
+    // matcher can expand them into concrete texts and emit `value.option`.
+    const options = e.option?.options;
+    if (Array.isArray(options) && options.length > 0) {
+      entry.options = options
+        .filter((o) => o && o.id !== undefined && o.text)
+        .map((o) => ({ id: o.id, text: String(o.text) }));
+    }
+    return entry;
+  });
   writeFileSync(join(OUT, `stats.${game}.json`), JSON.stringify(entries));
 
   // Leagues (deduped) + default

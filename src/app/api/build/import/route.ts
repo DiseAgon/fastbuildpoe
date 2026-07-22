@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { clientKey, rateLimit } from "@/lib/rateLimit";
 import { resolvePobInput } from "@/lib/pob/fetchPob";
 import { decodePobCode } from "@/lib/pob/decode";
 import { parseBuildXml } from "@/lib/pob/parseBuild";
@@ -19,6 +20,13 @@ interface ApiResponse {
 }
 
 export async function POST(request: Request): Promise<NextResponse<ApiResponse>> {
+  if (!rateLimit(`import:${clientKey(request)}`, 20)) {
+    return NextResponse.json(
+      { success: false, data: null, error: "Too many imports — wait a minute and try again." },
+      { status: 429 },
+    );
+  }
+
   let parsedBody: unknown;
   try {
     parsedBody = await request.json();

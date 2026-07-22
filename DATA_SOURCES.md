@@ -3,6 +3,12 @@
 FastBuildPOE pulls several datasets from external services. This document lists
 each source, what it feeds, and **what needs attention when a new league starts**.
 
+> **Automated refresh:** `.github/workflows/snapshot.yml` re-runs
+> `node scripts/snapshot.mjs` every 6 hours and commits `src/data/poe/` when it
+> changed, so a new league (e.g. 3.29 "Curse of the Allflame", 2026-07-24) is
+> picked up without manual work. If GitHub runners get Cloudflare-blocked by
+> pathofexile.com, run `npm run snapshot` locally and push instead.
+
 > TL;DR: almost everything is fetched **live and cached in memory per server run**,
 > so **restarting the app picks up new-league data automatically**. Only the
 > hardcoded fallbacks/ids (table below, "Hardcoded?") need manual edits, and only

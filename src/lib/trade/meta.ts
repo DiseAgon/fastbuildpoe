@@ -17,7 +17,13 @@ const SNAPSHOT: Record<GameId, TradeMeta> = {
   poe2: metaPoe2 as TradeMeta,
 };
 
-const cache: Partial<Record<GameId, TradeMeta>> = {};
+/** Refetch live leagues after this long, so a long-lived server instance picks
+ * up a new league (e.g. at a 3.xx launch) without a redeploy. */
+const CACHE_TTL_MS = 30 * 60 * 1000;
+/** Retry sooner when we only had the bundled snapshot to serve. */
+const FALLBACK_TTL_MS = 5 * 60 * 1000;
+
+const cache: Partial<Record<GameId, { meta: TradeMeta; expires: number }>> = {};
 
 /**
  * Try live leagues (fresh per league); fall back fast to the bundled snapshot
@@ -26,33 +32,36 @@ const cache: Partial<Record<GameId, TradeMeta>> = {};
  */
 export async function getTradeMeta(game: GameId): Promise<TradeMeta> {
   const cached = cache[game];
-  if (cached) return cached;
+  if (cached && cached.expires > Date.now()) return cached.meta;
 
-  try {
-    const res = await fetchWithTimeout(`${getGame(game).tradeApiBase}/data/leagues`, {
-      headers: TRADE_HEADERS,
-      cache: "no-store",
-    });
-    if (res.ok) {
-      const json = (await res.json()) as { result?: Array<{ id?: string }> };
-      const leagues = [
-        ...new Set((json.result ?? []).map((l) => l.id).filter((id): id is string => !!id)),
-      ];
-      if (leagues.length > 0) {
-        const main = leagues.find((l) => !/hardcore|ruthless|standard|ssf|\bhc\b/i.test(l));
-        const meta: TradeMeta = {
-          leagues,
-          defaultLeague: main ?? leagues[0],
-          divineIcon: SNAPSHOT[game].divineIcon,
-        };
-        cache[game] = meta;
-        return meta;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetchWithTimeout(`${getGame(game).tradeApiBase}/data/leagues`, {
+        headers: TRADE_HEADERS,
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { result?: Array<{ id?: string }> };
+        const leagues = [
+          ...new Set((json.result ?? []).map((l) => l.id).filter((id): id is string => !!id)),
+        ];
+        if (leagues.length > 0) {
+          const main = leagues.find((l) => !/hardcore|ruthless|standard|ssf|\bhc\b/i.test(l));
+          const meta: TradeMeta = {
+            leagues,
+            defaultLeague: main ?? leagues[0],
+            divineIcon: SNAPSHOT[game].divineIcon,
+          };
+          cache[game] = { meta, expires: Date.now() + CACHE_TTL_MS };
+          return meta;
+        }
       }
+    } catch {
+      // retry once, then fall through to snapshot
     }
-  } catch {
-    // fall through to snapshot
   }
 
-  cache[game] = SNAPSHOT[game];
+  console.warn(`[trade/meta] live league fetch failed for ${game}; serving bundled snapshot.`);
+  cache[game] = { meta: SNAPSHOT[game], expires: Date.now() + FALLBACK_TTL_MS };
   return SNAPSHOT[game];
 }

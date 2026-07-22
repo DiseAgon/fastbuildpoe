@@ -39,6 +39,7 @@ const ItemSchema = z.object({
       ward: z.number().optional(),
     })
     .optional(),
+  influences: z.array(z.string()).optional(),
   mods: z.array(ModSchema),
 });
 
@@ -51,6 +52,7 @@ const FilterSchema = z.object({
   group: z.enum(["and", "count", "not", "off"]),
   fractured: z.boolean().optional().default(false),
   fracturedStatId: z.string().nullable().optional().default(null),
+  option: z.number().nullable().optional().default(null),
 });
 
 const EquipmentSchema = z.object({
