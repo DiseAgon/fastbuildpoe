@@ -217,10 +217,10 @@ export default function Home() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 sm:px-6">
-      <header className="flex flex-wrap items-center justify-between gap-4 py-6">
+      <header className="sticky top-0 z-40 -mx-4 flex flex-wrap items-center justify-between gap-4 border-b border-border/40 bg-bg/85 px-4 py-4 backdrop-blur-md sm:-mx-6 sm:px-6">
         <div className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-1.svg" alt="FastBuildPOE logo" width={40} height={40} className="h-10 w-10" />
+          <img src="/logo-cat.svg" alt="FastBuildPOE logo" width={40} height={40} className="h-10 w-10" />
           <div>
             <h1 className="bg-gradient-to-r from-accent to-accent-2 bg-clip-text font-serif text-2xl font-bold text-transparent">
               FastBuildPOE
@@ -413,10 +413,25 @@ export default function Home() {
               )}
             </div>
           ) : (
-            <p className="text-sm text-muted">
-              No {GAMES[game].label} build imported yet. Paste a link above to start a session for
-              this game.
-            </p>
+            <div className="flex flex-col items-center gap-3 rounded-[var(--radius)] border border-dashed border-border bg-surface/30 px-6 py-12 text-center">
+              <svg viewBox="0 0 24 24" aria-hidden className="h-10 w-10 text-accent/50">
+                <path
+                  d="M4 7l8-4 8 4v10l-8 4-8-4V7zm8 4v9M4 7l8 4 8-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <p className="font-serif text-lg text-text">
+                No {GAMES[game].label} build imported yet
+              </p>
+              <p className="max-w-sm text-sm text-muted">
+                Paste a pobb.in link or Path of Building code above — you&apos;ll get a tunable
+                trade-search link for every item in the build.
+              </p>
+            </div>
           )}
         </main>
       </BuildProvider>

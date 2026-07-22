@@ -3,22 +3,25 @@
 @tailwind utilities;
 
 /* ----------------------------------------------------------------------------
-   Design tokens — PoE dark editorial direction.
-   Palette in oklch for perceptual consistency; rarity colors match the game.
+   Design tokens — "Sunny Tabby" direction (see design-system/fastbuildpoe/).
+   Warm cream base + energetic orange (cat brand) + trust blue.
+   Palette in oklch for perceptual consistency; rarity colors match the game,
+   darkened for contrast on a light background.
 ---------------------------------------------------------------------------- */
 :root {
-  /* Light, airy base */
-  --color-bg: oklch(97% 0.008 235);
-  --color-surface: oklch(99.5% 0.003 235);
-  --color-surface-raised: oklch(94.5% 0.012 235);
-  --color-border: oklch(88% 0.014 240);
-  --color-text: oklch(30% 0.025 255);
-  --color-text-muted: oklch(52% 0.03 250);
-  /* Green primary + blue secondary, darkened for contrast on light */
-  --color-accent: oklch(56% 0.16 162); /* green */
-  --color-accent-soft: oklch(50% 0.13 175); /* teal */
-  --color-accent-2: oklch(54% 0.17 250); /* blue */
+  /* Light, warm base */
+  --color-bg: oklch(97.5% 0.014 75);
+  --color-surface: oklch(99.3% 0.006 80);
+  --color-surface-raised: oklch(95% 0.02 75);
+  --color-border: oklch(88% 0.028 70);
+  --color-text: oklch(28% 0.03 260);
+  --color-text-muted: oklch(50% 0.032 255);
+  /* Orange primary (tabby brand), amber support, blue secondary */
+  --color-accent: oklch(56% 0.18 42); /* orange, WCAG-safe on cream */
+  --color-accent-soft: oklch(50% 0.16 35); /* deep amber */
+  --color-accent-2: oklch(50% 0.19 262); /* blue */
 
+  /* In-game rarity colors, darkened for light surfaces */
   --rarity-normal: oklch(45% 0 0);
   --rarity-magic: oklch(50% 0.18 262);
   --rarity-rare: oklch(52% 0.14 92);
@@ -35,6 +38,8 @@
   --duration-fast: 150ms;
   --duration-normal: 280ms;
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  color-scheme: light;
 }
 
 html,
@@ -45,18 +50,22 @@ body {
 }
 
 body {
-  /* subtle green→blue tint so the page does not read as flat white */
-  background-image: radial-gradient(
-    90% 60% at 12% -10%,
-    oklch(80% 0.12 165 / 0.35),
-    transparent 55%
-  ),
-  radial-gradient(
-    90% 60% at 92% -10%,
-    oklch(80% 0.12 250 / 0.35),
-    transparent 55%
-  );
+  /* soft orange→blue tint so the page reads warm and lively, not flat white */
+  background-image:
+    radial-gradient(90% 60% at 12% -10%, oklch(85% 0.11 60 / 0.4), transparent 55%),
+    radial-gradient(90% 60% at 92% -10%, oklch(85% 0.1 255 / 0.32), transparent 55%);
   background-attachment: fixed;
+}
+
+/* Visible keyboard-focus ring everywhere, orange to match the accent */
+:focus-visible {
+  outline: 2px solid oklch(56% 0.18 42 / 0.85);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: oklch(75% 0.15 55 / 0.35);
 }
 
 @media (prefers-reduced-motion: reduce) {

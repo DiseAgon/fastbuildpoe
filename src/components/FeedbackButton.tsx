@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
 
 const EMAIL = "agondise@gmail.com";
 
@@ -9,6 +10,7 @@ export function FeedbackButton() {
   const [message, setMessage] = useState("");
   const [contact, setContact] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
+  useEscapeClose(open, () => setOpen(false));
 
   async function submit() {
     if (message.trim().length < 3) return;

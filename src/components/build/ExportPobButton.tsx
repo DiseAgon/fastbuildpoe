@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ItemSetView, ParsedItem } from "@/types/item";
 import { useBuild, formatDivine } from "./BuildContext";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
 
 function buildNotes(
   view: ItemSetView,
@@ -59,6 +60,7 @@ export function ExportPobButton({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<"link" | "code" | null>(null);
+  useEscapeClose(result !== null, () => setResult(null));
 
   if (!input) return null;
 

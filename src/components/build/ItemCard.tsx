@@ -17,7 +17,9 @@ export function ItemCard({ item, number }: { item: ParsedItem; number: number })
   const priceKey = keyFor(item);
   // Sanitize for use as a DOM id (item keys contain spaces, "|", "%", etc.).
   const priceFieldId = `price-${priceKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-  const showBase = item.baseType && item.baseType !== item.name;
+  // PoB names crafted items "New Item" — the base type is the useful label.
+  const displayName = item.name === "New Item" ? item.baseType : item.name;
+  const showBase = item.baseType && item.baseType !== displayName;
   const isGem = item.category === "gem";
 
   return (
@@ -34,9 +36,9 @@ export function ItemCard({ item, number }: { item: ParsedItem; number: number })
         <div className="min-w-0 flex-1">
           <h3
             className={`truncate font-serif text-lg leading-tight ${RARITY_TEXT_CLASS[item.rarity]}`}
-            title={item.name}
+            title={displayName}
           >
-            {item.name}
+            {displayName}
           </h3>
           {showBase && (
             <p className="truncate text-sm text-muted" title={item.baseType}>

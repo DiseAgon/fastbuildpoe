@@ -2,6 +2,7 @@
 
 import type { SavedSession } from "@/lib/sessions";
 import { formatDivine } from "@/components/build/BuildContext";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
 
 export function SavedPanel({
   open,
@@ -18,6 +19,7 @@ export function SavedPanel({
   onDelete: (id: string) => void;
   onClear: () => void;
 }) {
+  useEscapeClose(open, onClose);
   if (!open) return null;
 
   return (

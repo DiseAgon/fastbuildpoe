@@ -27,7 +27,8 @@ const config: Config = {
         sans: "var(--font-sans)",
       },
       boxShadow: {
-        card: "0 1px 2px 0 rgb(0 0 0 / 0.05), 0 10px 28px -16px rgb(0 0 0 / 0.18)",
+        card: "0 1px 2px 0 rgb(120 60 10 / 0.06), 0 10px 28px -16px rgb(120 60 10 / 0.2)",
+        glow: "0 0 0 1px oklch(56% 0.18 42 / 0.2), 0 4px 20px -8px oklch(56% 0.18 42 / 0.3)",
       },
     },
   },
