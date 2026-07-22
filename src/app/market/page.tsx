@@ -90,7 +90,9 @@ export default function MarketPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [minVolume, setMinVolume] = useState("500");
+  const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("loopPct");
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
 
   const load = useCallback(async (nextType: string, nextLeague: string) => {
     setLoading(true);
@@ -122,32 +124,48 @@ export default function MarketPage() {
   const rows = useMemo(() => {
     if (!board) return [];
     const min = Number.parseFloat(minVolume) || 0;
-    const filtered = board.rows.filter((r) => r.volumeChaos >= min);
+    const query = search.trim().toLowerCase();
+    const filtered = board.rows.filter(
+      (r) => (query === "" || r.name.toLowerCase().includes(query)) &&
+        (query !== "" || r.volumeChaos >= min),
+    );
+    // Signed values so ascending surfaces the most-negative loops — those are
+    // the same opportunity run in the reverse direction.
+    const missing = sortDir === "desc" ? -Infinity : Infinity;
     const value = (r: FlipRow): number => {
       switch (sortKey) {
         case "loopPct":
-          return r.loopPct === null ? -Infinity : Math.abs(r.loopPct);
+          return r.loopPct ?? missing;
         case "volumeChaos":
           return r.volumeChaos;
         case "trend7d":
-          return r.trend7d === null ? -Infinity : Math.abs(r.trend7d);
+          return r.trend7d ?? missing;
         case "chaosRate":
           return r.chaosRate;
       }
     };
-    return [...filtered].sort((a, b) => value(b) - value(a));
-  }, [board, minVolume, sortKey]);
+    const sign = sortDir === "desc" ? 1 : -1;
+    return [...filtered].sort((a, b) => sign * (value(b) - value(a)));
+  }, [board, minVolume, search, sortKey, sortDir]);
 
   const headerButton = (key: SortKey, label: string) => (
     <button
       type="button"
-      onClick={() => setSortKey(key)}
+      onClick={() => {
+        if (sortKey === key) {
+          setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+        } else {
+          setSortKey(key);
+          setSortDir("desc");
+        }
+      }}
+      title="Click again to reverse — most-negative loops are the reverse-direction plays"
       className={`inline-flex items-center gap-1 ${
         sortKey === key ? "text-accent" : "text-muted hover:text-text"
       }`}
     >
       {label}
-      {sortKey === key ? <span aria-hidden>▾</span> : null}
+      {sortKey === key ? <span aria-hidden>{sortDir === "desc" ? "▾" : "▴"}</span> : null}
     </button>
   );
 
@@ -221,14 +239,29 @@ export default function MarketPage() {
           </span>
         </div>
 
-        {board?.divinePrice ? (
-          <p className="text-sm text-muted">
-            1 Divine ≈ <span className="font-medium text-text">{fmt(board.divinePrice, 0)}c</span> on
-            the exchange · data refreshes ~5 min (poe.ninja) · loop % is before gold fees — the
-            exchange charges gold on every trade (3 trades per loop), so prefer high-volume,
-            high-percentage rows.
-          </p>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="flex items-center gap-2 rounded-[var(--radius)] border border-accent/40 bg-accent/10 px-4 py-2 shadow-glow">
+            <span className="text-sm text-muted">1 Divine ≈</span>
+            <span className="font-serif text-2xl font-bold tabular-nums text-accent">
+              {board?.divinePrice ? fmt(board.divinePrice, 0) : "—"}c
+            </span>
+          </span>
+          <label className="sr-only" htmlFor="market-search">
+            Search items
+          </label>
+          <input
+            id="market-search"
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search… e.g. exalted"
+            className="w-56 rounded-[var(--radius)] border border-border bg-surface px-4 py-2 text-sm text-text outline-none transition-colors placeholder:text-muted/60 focus:border-accent"
+          />
+          <span className="text-xs text-muted">
+            Data refreshes ~5 min (poe.ninja) · loop % is before gold fees (3 trades per loop) —
+            prefer high-volume, high-percentage rows.
+          </span>
+        </div>
 
         {error && (
           <p className="rounded-[var(--radius)] border border-accent/40 bg-accent/5 p-3 text-sm text-accent" role="alert">
@@ -243,9 +276,13 @@ export default function MarketPage() {
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wide">
                   <th className="px-4 py-3 font-medium text-muted">Item</th>
-                  <th className="px-4 py-3 text-right font-medium">{headerButton("chaosRate", "Chaos rate")}</th>
-                  <th className="px-4 py-3 text-right font-medium text-muted">Per divine</th>
-                  <th className="px-4 py-3 text-right font-medium text-muted">Divine leg (c)</th>
+                  <th className="px-4 py-3 text-right font-medium">{headerButton("chaosRate", "Chaos pair")}</th>
+                  <th
+                    className="px-4 py-3 text-right font-medium text-muted"
+                    title="Price on the divine pair, converted to chaos. Small text: how many items 1 divine buys."
+                  >
+                    Divine pair
+                  </th>
                   <th className="px-4 py-3 font-medium">{headerButton("loopPct", "Flip loop")}</th>
                   <th className="px-4 py-3 text-right font-medium">{headerButton("volumeChaos", "Volume (c)")}</th>
                   <th className="px-4 py-3 font-medium">{headerButton("trend7d", "7d trend")}</th>
@@ -254,7 +291,7 @@ export default function MarketPage() {
               <tbody>
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-muted">
+                    <td colSpan={6} className="px-4 py-8 text-center text-muted">
                       No rows above this volume threshold.
                     </td>
                   </tr>
@@ -276,8 +313,14 @@ export default function MarketPage() {
                       </span>
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums">{fmt(r.chaosRate, 2)}c</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-muted">{fmt(r.perDivine, 1)}</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-muted">{fmt(r.divineLegChaos, 2)}</td>
+                    <td className="px-4 py-2 text-right">
+                      <span className="tabular-nums text-text">{fmt(r.divineLegChaos, 2)}c</span>
+                      {r.perDivine !== null && (
+                        <span className="block text-[11px] tabular-nums text-muted">
+                          {fmt(r.perDivine, 2)} / div
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-2">
                       <LoopBadge pct={r.loopPct} />
                     </td>
@@ -313,6 +356,13 @@ export default function MarketPage() {
               this board cannot fetch — no public API exposes gold fees. A loop is 3 trades, so
               treat small percentages as break-even and prioritise volume so your orders actually
               fill. Rates are ~5-minute snapshots of filled trades, not a live order book.
+            </p>
+            <p>
+              <strong>Bid/ask gaps:</strong> inside a single pair the in-game order book also has a
+              buy/sell gap that no public API exposes — wide-gap items (often low-volume ones) can
+              pay far more than the loop % shown here if you post orders on both sides and wait.
+              Use the volume column as a fill-speed proxy: low volume = wider gaps but slower
+              trades. Check the in-game book before committing large capital.
             </p>
           </div>
         </details>

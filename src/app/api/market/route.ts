@@ -28,7 +28,10 @@ export async function GET(request: Request): Promise<NextResponse<ApiResponse>> 
   }
 
   const leagues = await getEconomyLeagues();
-  const league = url.searchParams.get("league") || leagues[0] || "Standard";
+  // Default to the temp (challenge) league when one is live — at a 3.xx launch
+  // poe.ninja adds it within hours and this picks it up automatically.
+  const tempLeague = leagues.find((l) => !/standard|hardcore|ruthless|ssf/i.test(l));
+  const league = url.searchParams.get("league") || tempLeague || leagues[0] || "Standard";
 
   const board = await getFlipBoard(league, type);
   if (!board) {
