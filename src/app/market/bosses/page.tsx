@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { BossBoard, BossCard, BossDrop, PricedCostGroup } from "@/lib/market/bosses";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import type { BossBoard, BossCard, BossDrop, BossSection } from "@/lib/market/bosses";
 
 interface BoardResponse {
   success: boolean;
@@ -47,7 +48,7 @@ function CostGroupRow({
   group,
   divinePrice,
 }: {
-  group: PricedCostGroup;
+  group: BossSection;
   divinePrice: number | null;
 }) {
   return (
@@ -97,14 +98,6 @@ function DropRow({ drop, divinePrice }: { drop: BossDrop; divinePrice: number | 
             <span className="inline-block h-6 w-6 rounded bg-surface-raised" aria-hidden />
           )}
           <span className="font-medium text-rarity-unique">{drop.name}</span>
-          {drop.uberOnly && (
-            <span
-              className="rounded-full border border-accent/40 bg-accent/10 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-accent"
-              title="Uber-exclusive drop"
-            >
-              uber
-            </span>
-          )}
           {drop.variants > 1 && (
             <span className="text-[10px] text-muted" title="Highest-priced variant shown">
               {drop.variants} variants
@@ -134,12 +127,9 @@ function BossCardView({ boss, divinePrice }: { boss: BossCard; divinePrice: numb
     boss.uberCostChaos && boss.topDropChaos && boss.uberCostChaos > 0
       ? boss.topDropChaos / boss.uberCostChaos
       : null;
-  const wide = boss.id === "the-feared";
   return (
     <section
-      className={`flex flex-col gap-3 rounded-[var(--radius)] border border-border bg-surface p-4 shadow-card ${
-        wide ? "xl:col-span-2" : ""
-      }`}
+      className="flex flex-col gap-3 rounded-[var(--radius)] border border-border bg-surface p-4 shadow-card"
       aria-labelledby={`boss-${boss.id}`}
     >
       <header className="flex flex-wrap items-start justify-between gap-2">
@@ -163,31 +153,39 @@ function BossCardView({ boss, divinePrice }: { boss: BossCard; divinePrice: numb
         )}
       </header>
 
-      <div className="flex flex-col gap-1.5">
-        {boss.costGroups.map((group) => (
-          <CostGroupRow key={group.label} group={group} divinePrice={divinePrice} />
-        ))}
-      </div>
-
-      {boss.drops.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[420px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted">
-                <th className="py-1 pr-2 font-medium">Notable drops</th>
-                <th className="py-1 pl-2 text-right font-medium">Price</th>
-                <th className="py-1 pl-3 text-right font-medium">Listings</th>
-                <th className="py-1 pl-3 text-right font-medium">7d</th>
-              </tr>
-            </thead>
-            <tbody>
-              {boss.drops.map((drop) => (
-                <DropRow key={`${boss.id}-${drop.name}`} drop={drop} divinePrice={divinePrice} />
-              ))}
-            </tbody>
-          </table>
+      {boss.sections.map((sec) => (
+        <div
+          key={sec.label}
+          className="flex flex-col gap-2 rounded-md border border-border/50 p-2.5"
+        >
+          <CostGroupRow group={sec} divinePrice={divinePrice} />
+          {sec.costNote && <p className="px-1 text-xs text-muted">{sec.costNote}</p>}
+          {sec.drops.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[420px] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted">
+                    <th className="py-1 pr-2 font-medium">{sec.label} drops</th>
+                    <th className="py-1 pl-2 text-right font-medium">Price</th>
+                    <th className="py-1 pl-3 text-right font-medium">Listings</th>
+                    <th className="py-1 pl-3 text-right font-medium">7d</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sec.drops.map((drop) => (
+                    <DropRow
+                      key={`${boss.id}-${sec.label}-${drop.name}`}
+                      drop={drop}
+                      divinePrice={divinePrice}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {sec.note && <p className="px-1 text-xs text-muted">{sec.note}</p>}
         </div>
-      )}
+      ))}
 
       {boss.note && <p className="text-xs text-muted">{boss.note}</p>}
     </section>
@@ -200,8 +198,8 @@ export default function BossProfitPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const load = useCallback(async (nextLeague: string) => {
-    setLoading(true);
+  const load = useCallback(async (nextLeague: string, silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
@@ -217,7 +215,7 @@ export default function BossProfitPage() {
     } catch {
       setError("Could not reach the server.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -225,6 +223,11 @@ export default function BossProfitPage() {
     void load("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const refresh = useCallback(() => {
+    void load(league, true);
+  }, [load, league]);
+  useAutoRefresh(refresh);
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 sm:px-6">
@@ -279,7 +282,12 @@ export default function BossProfitPage() {
               1 Divine ≈ {fmt(board.divinePrice, 0)}c
             </span>
             <span className="text-xs text-muted">
-              League: {board.league} · Exchange + trade prices via poe.ninja (~5 min delay)
+              League: {board.league} · poe.ninja (~5 min delay) · auto-refreshes every 3 min ·
+              updated{" "}
+              {new Date(board.fetchedAt).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
             </span>
           </div>
         )}
@@ -305,7 +313,7 @@ export default function BossProfitPage() {
           </summary>
           <div className="mt-2 flex flex-col gap-2">
             <p>
-              Each card shows the <strong>entry cost</strong> of a fight (5 uber fragments from T17
+              Each card shows the <strong>entry cost</strong> of a fight (4 uber fragments from T17
               maps, or the standard-version set) priced live on the in-game Currency Exchange, next
               to the current sale price of its <strong>notable drops</strong>. The &quot;top drop&quot;
               badge compares the single best drop against the uber entry cost — it is a ceiling, not
@@ -313,12 +321,12 @@ export default function BossProfitPage() {
               mid-value drops can beat one jackpot).
             </p>
             <p>
+              Each boss is split into <strong>Uber</strong> (top) and <strong>Standard</strong>{" "}
+              (bottom) because the pools differ — the uber fight also drops the whole standard pool.
               Early-league timing: fragment prices are highest on days 1–3 (few T17s in circulation)
               while uber-exclusive uniques also peak — run the standard versions until fragments
-              cool off, then switch to ubers. The Feared invitation itself is not exchange-traded;
-              it drops while farming its five member fights, and Awakened-gem prices below tell you
-              whether a Feared rotation is worth it. Sell drops fast — almost everything here bleeds
-              value as the league ages.
+              cool off, then switch to ubers. Sell drops fast — almost everything here bleeds value
+              as the league ages.
             </p>
           </div>
         </details>

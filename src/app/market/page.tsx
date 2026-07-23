@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type { FlipBoard, FlipRow } from "@/lib/market/ninja";
 
 const TYPE_TABS: Array<{ id: string; label: string }> = [
@@ -176,8 +177,8 @@ export default function MarketPage() {
   const [sortKey, setSortKey] = useState<SortKey>("loopPct");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
 
-  const load = useCallback(async (nextType: string, nextLeague: string) => {
-    setLoading(true);
+  const load = useCallback(async (nextType: string, nextLeague: string, silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({ type: nextType });
@@ -193,7 +194,7 @@ export default function MarketPage() {
     } catch {
       setError("Could not reach the server.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -202,6 +203,11 @@ export default function MarketPage() {
     // league is intentionally read once per change through the handlers below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const refresh = useCallback(() => {
+    void load(type, league, true);
+  }, [load, type, league]);
+  useAutoRefresh(refresh);
 
   const rows = useMemo(() => {
     if (!board) return [];
@@ -344,6 +350,15 @@ export default function MarketPage() {
               {board?.divinePrice ? fmt(board.divinePrice, 0) : "—"}c
             </span>
           </span>
+          {board && (
+            <span className="text-xs text-muted">
+              auto-refreshes every 3 min · updated{" "}
+              {new Date(board.fetchedAt).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+          )}
           <label className="sr-only" htmlFor="market-search">
             Search items
           </label>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type { BreakoutBoard, BreakoutRow } from "@/lib/market/ninja";
 
 type SortKey = "score" | "d1" | "trend7d" | "chaosValue" | "listingCount";
@@ -60,8 +61,8 @@ export default function BreakoutsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
 
-  const load = useCallback(async (nextLeague: string) => {
-    setLoading(true);
+  const load = useCallback(async (nextLeague: string, silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
@@ -77,7 +78,7 @@ export default function BreakoutsPage() {
     } catch {
       setError("Could not reach the server.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -85,6 +86,11 @@ export default function BreakoutsPage() {
     void load("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const refresh = useCallback(() => {
+    void load(league, true);
+  }, [load, league]);
+  useAutoRefresh(refresh);
 
   const rows = useMemo(() => {
     if (!board) return [];
@@ -219,6 +225,17 @@ export default function BreakoutsPage() {
           <span className="text-xs text-muted">
             Score = 1-day momentum + acceleration vs the earlier week. Cheap item + high score +
             shrinking listings = possible viral-build pickup.
+            {board && (
+              <>
+                {" "}
+                Auto-refreshes every 3 min · updated{" "}
+                {new Date(board.fetchedAt).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+                .
+              </>
+            )}
           </span>
         </div>
 

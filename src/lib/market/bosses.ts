@@ -1,15 +1,20 @@
 /**
- * Boss Profit board — cost to open each uber pinnacle fight vs live prices of
- * its notable drops, so early-league boss farmers can see what actually pays.
+ * Boss Profit board — cost to open each pinnacle fight vs live prices of its
+ * notable drops, so early-league boss farmers can see what actually pays.
+ *
+ * Each boss is split into sections (Uber on top, Standard below) because the
+ * two versions have different drop pools; the uber fight also drops the whole
+ * standard pool, noted in the UI.
  *
  * Costs come from the in-game Currency Exchange (Fragment category) and the
  * trade-site Invitation category. Drops come from the unique-item overviews
  * plus SkillGem (Awakened gems) — all via poe.ninja.
  *
  * Access recipes and drop pools verified against the official 3.29-era state:
- * every classic uber is opened with 5 boss-specific fragments dropped in T17
- * maps (3.24 rework); the three Incarnation bosses (3.26) have harder versions
- * via their Echo / fragment items (3.27).
+ * every classic uber is opened with 4 boss-specific fragments dropped in T17
+ * maps (fragment system from the 3.24 rework, count later reduced 5 → 4); the
+ * three Incarnation bosses (3.26) have harder versions via their Echo /
+ * fragment items (3.27).
  */
 
 import {
@@ -29,263 +34,310 @@ interface CostItemDef {
   qty: number;
 }
 
-interface CostGroupDef {
-  label: string;
-  items: CostItemDef[];
-}
-
 interface DropDef {
   name: string;
-  uberOnly?: boolean;
   /** Alternate spellings seen in the wild (source typos, renames). */
   aliases?: string[];
+}
+
+interface SectionDef {
+  label: string;
+  cost: CostItemDef[];
+  /** Shown when the entry item has no market feed (e.g. Cortex map). */
+  costNote?: string;
+  drops: DropDef[];
+  note?: string;
 }
 
 interface BossDef {
   id: string;
   name: string;
   subtitle: string;
-  costGroups: CostGroupDef[];
-  drops: DropDef[];
-  /** Appends the live top Awakened gems to the drop list (The Feared). */
-  awakenedGems?: boolean;
+  sections: SectionDef[];
   note?: string;
 }
 
-const UBER = (name: string, aliases?: string[]): DropDef => ({ name, uberOnly: true, aliases });
-const BASE = (name: string, aliases?: string[]): DropDef => ({ name, aliases });
+const D = (name: string, aliases?: string[]): DropDef => ({ name, aliases });
+const UBER_POOL_NOTE = "The uber fight also drops everything in the Standard pool below.";
 
 const BOSSES: BossDef[] = [
   {
     id: "uber-maven",
-    name: "Uber Maven",
-    subtitle: "5× Reality Fragment (T17 drops) — standard fight: The Maven's Writ",
-    costGroups: [
-      { label: "Uber", items: [{ cxId: "reality-fragment", label: "Reality Fragment", qty: 5 }] },
-      { label: "Standard", items: [{ cxId: "the-mavens-writ", label: "The Maven's Writ", qty: 1 }] },
+    name: "The Maven",
+    subtitle: "Uber: 4× Reality Fragment (T17 drops) · Standard: The Maven's Writ",
+    sections: [
+      {
+        label: "Uber",
+        cost: [{ cxId: "reality-fragment", label: "Reality Fragment", qty: 4 }],
+        drops: [
+          D("Progenesis"),
+          D("Impossible Escape"),
+          D("Viridi's Veil"),
+          D("Grace of the Goddess"),
+          D("Awakened Empower Support"),
+          D("Awakened Enlighten Support"),
+          D("Awakened Enhance Support"),
+        ],
+        note: `${UBER_POOL_NOTE} Plus Shiny Reliquary Key / Curio of Potential.`,
+      },
+      {
+        label: "Standard",
+        cost: [{ cxId: "the-mavens-writ", label: "The Maven's Writ", qty: 1 }],
+        drops: [
+          D("Legacy of Fury"),
+          D("Graven's Secret"),
+          D("Arn's Anguish"),
+          D("Olesya's Delight"),
+          D("Doppelgänger Guise"),
+          D("Echoforge"),
+        ],
+        note: "Also drops Orb of Conflict.",
+      },
     ],
-    drops: [
-      UBER("Progenesis"),
-      UBER("Impossible Escape"),
-      UBER("Viridi's Veil"),
-      UBER("Grace of the Goddess"),
-      UBER("Awakened Empower Support"),
-      UBER("Awakened Enlighten Support"),
-      UBER("Awakened Enhance Support"),
-      BASE("Legacy of Fury"),
-      BASE("Graven's Secret"),
-      BASE("Arn's Anguish"),
-      BASE("Olesya's Delight"),
-      BASE("Doppelgänger Guise"),
-      BASE("Echoforge"),
-    ],
-    note: "Also drops Orb of Conflict; uber adds Shiny Reliquary Key / Curio of Potential.",
   },
   {
     id: "uber-sirus",
-    name: "Uber Sirus",
-    subtitle: "5× Awakening Fragment — standard fight: the four Conqueror crests",
-    costGroups: [
-      { label: "Uber", items: [{ cxId: "awakening-fragment", label: "Awakening Fragment", qty: 5 }] },
+    name: "Sirus, Awakener of Worlds",
+    subtitle: "Uber: 4× Awakening Fragment · Standard: the four Conqueror crests",
+    sections: [
+      {
+        label: "Uber",
+        cost: [{ cxId: "awakening-fragment", label: "Awakening Fragment", qty: 4 }],
+        drops: [D("The Saviour"), D("Oriath's End"), D("The Tempest Rising")],
+        note: `${UBER_POOL_NOTE} Massive-ring Thread of Hope + Oubliette Reliquary Key are uber-only.`,
+      },
       {
         label: "Standard",
-        items: [
+        cost: [
           { cxId: "al-hezmins-crest", label: "Al-Hezmin's Crest", qty: 1 },
           { cxId: "barans-crest", label: "Baran's Crest", qty: 1 },
           { cxId: "droxs-crest", label: "Drox's Crest", qty: 1 },
           { cxId: "veritanias-crest", label: "Veritania's Crest", qty: 1 },
         ],
+        drops: [
+          D("Thread of Hope"),
+          D("Crown of the Inward Eye"),
+          D("Hands of the High Templar"),
+          D("The Burden of Truth"),
+        ],
+        note: "Also drops Awakener's Orb / Orb of Dominance.",
       },
     ],
-    drops: [
-      UBER("The Saviour"),
-      UBER("Oriath's End"),
-      UBER("The Tempest Rising"),
-      BASE("Thread of Hope"),
-      BASE("Crown of the Inward Eye"),
-      BASE("Hands of the High Templar"),
-      BASE("The Burden of Truth"),
-    ],
-    note: "Massive-ring Thread of Hope is uber-only. Also drops Awakener's Orb / Orb of Dominance.",
   },
   {
     id: "uber-exarch",
-    name: "Uber Searing Exarch",
-    subtitle: "5× Blazing Fragment — standard fight: Incandescent Invitation",
-    costGroups: [
-      { label: "Uber", items: [{ cxId: "blazing-fragment", label: "Blazing Fragment", qty: 5 }] },
-      { label: "Standard", items: [{ invName: "Incandescent Invitation", label: "Incandescent Invitation", qty: 1 }] },
+    name: "The Searing Exarch",
+    subtitle: "Uber: 4× Blazing Fragment · Standard: Incandescent Invitation",
+    sections: [
+      {
+        label: "Uber",
+        cost: [{ cxId: "blazing-fragment", label: "Blazing Fragment", qty: 4 }],
+        drops: [
+          D("Crystallised Omniscience"),
+          D("The Annihilating Light"),
+          D("Annihilation's Approach"),
+          D("The Celestial Brace"),
+        ],
+        note: `${UBER_POOL_NOTE} Plus Archive Reliquary Key / Curio of Absorption.`,
+      },
+      {
+        label: "Standard",
+        cost: [{ invName: "Incandescent Invitation", label: "Incandescent Invitation", qty: 1 }],
+        drops: [
+          D("Dissolution of the Flesh"),
+          D("Dawnbreaker"),
+          D("Dawnstrider"),
+          D("Forbidden Flame"),
+        ],
+        note: "Also drops Exceptional Eldritch Embers and Eldritch currency.",
+      },
     ],
-    drops: [
-      UBER("Crystallised Omniscience"),
-      UBER("The Annihilating Light"),
-      UBER("Annihilation's Approach"),
-      UBER("The Celestial Brace"),
-      BASE("Dissolution of the Flesh"),
-      BASE("Dawnbreaker"),
-      BASE("Dawnstrider"),
-      BASE("Forbidden Flame"),
-    ],
-    note: "Also drops Exceptional Eldritch Embers and Eldritch currency.",
   },
   {
     id: "uber-eater",
-    name: "Uber Eater of Worlds",
-    subtitle: "5× Devouring Fragment — standard fight: Polaric Invitation",
-    costGroups: [
-      { label: "Uber", items: [{ cxId: "devouring-fragment", label: "Devouring Fragment", qty: 5 }] },
-      { label: "Standard", items: [{ invName: "Polaric Invitation", label: "Polaric Invitation", qty: 1 }] },
+    name: "The Eater of Worlds",
+    subtitle: "Uber: 4× Devouring Fragment · Standard: Polaric Invitation",
+    sections: [
+      {
+        label: "Uber",
+        cost: [{ cxId: "devouring-fragment", label: "Devouring Fragment", qty: 4 }],
+        drops: [D("Nimis"), D("Ashes of the Stars"), D("Ravenous Passion")],
+        note: `${UBER_POOL_NOTE} Plus Visceral Reliquary Key / Curio of Consumption.`,
+      },
+      {
+        label: "Standard",
+        cost: [{ invName: "Polaric Invitation", label: "Polaric Invitation", qty: 1 }],
+        drops: [
+          D("Melding of the Flesh"),
+          D("The Gluttonous Tide"),
+          D("Inextricable Fate"),
+          D("Forbidden Flesh"),
+        ],
+        note: "Also drops Exceptional Eldritch Ichors and Eldritch currency.",
+      },
     ],
-    drops: [
-      UBER("Nimis"),
-      UBER("Ashes of the Stars"),
-      UBER("Ravenous Passion"),
-      BASE("Melding of the Flesh"),
-      BASE("The Gluttonous Tide"),
-      BASE("Inextricable Fate"),
-      BASE("Forbidden Flesh"),
-    ],
-    note: "Also drops Exceptional Eldritch Ichors and Eldritch currency.",
   },
   {
     id: "uber-shaper",
-    name: "Uber Shaper",
-    subtitle: "5× Cosmic Fragment — standard fight: the four Shaper Guardian fragments",
-    costGroups: [
-      { label: "Uber", items: [{ cxId: "cosmic-fragment", label: "Cosmic Fragment", qty: 5 }] },
+    name: "The Shaper",
+    subtitle: "Uber: 4× Cosmic Fragment · Standard: the four Shaper Guardian fragments",
+    sections: [
+      {
+        label: "Uber",
+        cost: [{ cxId: "cosmic-fragment", label: "Cosmic Fragment", qty: 4 }],
+        drops: [
+          D("Sublime Vision"),
+          D("Starforge"),
+          D("Echoes of Creation"),
+          D("Entropic Devastation"),
+          D("The Tides of Time"),
+        ],
+        note: `${UBER_POOL_NOTE} Plus Cosmic Reliquary Key.`,
+      },
       {
         label: "Standard",
-        items: [
+        cost: [
           { cxId: "phoenix", label: "Fragment of the Phoenix", qty: 1 },
           { cxId: "chimer", label: "Fragment of the Chimera", qty: 1 },
           { cxId: "minot", label: "Fragment of the Minotaur", qty: 1 },
           { cxId: "hydra", label: "Fragment of the Hydra", qty: 1 },
         ],
+        drops: [D("Dying Sun"), D("Solstice Vigil"), D("Shaper's Touch"), D("Voidwalker")],
+        note: "Also drops Orb of Dominance and a guaranteed Fragment of Knowledge/Shape.",
       },
     ],
-    drops: [
-      UBER("Sublime Vision"),
-      UBER("Starforge"),
-      UBER("Echoes of Creation"),
-      UBER("Entropic Devastation"),
-      UBER("The Tides of Time"),
-      BASE("Dying Sun"),
-      BASE("Solstice Vigil"),
-      BASE("Shaper's Touch"),
-      BASE("Voidwalker"),
-    ],
-    note: "Also drops Orb of Dominance and a guaranteed Fragment of Knowledge/Shape.",
   },
   {
     id: "uber-uber-elder",
-    name: "Uber Uber Elder",
-    subtitle: "5× Decaying Fragment — standard fight: Terror + Emptiness + Shape + Knowledge",
-    costGroups: [
-      { label: "Uber", items: [{ cxId: "decaying-fragment", label: "Decaying Fragment", qty: 5 }] },
+    name: "Uber Elder",
+    subtitle: "Uber: 4× Decaying Fragment · Standard: Terror + Emptiness + Shape + Knowledge",
+    sections: [
+      {
+        label: "Uber",
+        cost: [{ cxId: "decaying-fragment", label: "Decaying Fragment", qty: 4 }],
+        drops: [
+          D("Voidforge"),
+          D("Sublime Vision"),
+          D("The Eternity Shroud"),
+          D("Soul Ascension"),
+          D("Call of the Void"),
+          D("The Devourer of Minds"),
+        ],
+        note: `${UBER_POOL_NOTE} Plus the 2-curse Impresence variant, Decaying Reliquary Key / Curio of Decay.`,
+      },
       {
         label: "Standard",
-        items: [
+        cost: [
           { cxId: "fragment-of-terror", label: "Fragment of Terror", qty: 1 },
           { cxId: "fragment-of-emptiness", label: "Fragment of Emptiness", qty: 1 },
           { cxId: "fragment-of-shape", label: "Fragment of Shape", qty: 1 },
           { cxId: "fragment-of-knowledge", label: "Fragment of Knowledge", qty: 1 },
         ],
+        drops: [
+          D("Watcher's Eye"),
+          D("Indigon"),
+          D("Disintegrator"),
+          D("Voidfletcher"),
+          D("Mark of the Elder"),
+          D("Mark of the Shaper"),
+        ],
+        note: "Also drops Orb of Dominance.",
       },
     ],
-    drops: [
-      UBER("Voidforge"),
-      UBER("Sublime Vision"),
-      UBER("The Eternity Shroud"),
-      UBER("Soul Ascension"),
-      UBER("Call of the Void"),
-      UBER("The Devourer of Minds"),
-      BASE("Watcher's Eye"),
-      BASE("Indigon"),
-      BASE("Disintegrator"),
-      BASE("Voidfletcher"),
-      BASE("Mark of the Elder"),
-      BASE("Mark of the Shaper"),
-    ],
-    note: "Uber also adds the 2-curse Impresence variant and Orb of Dominance.",
   },
   {
     id: "uber-venarius",
-    name: "Uber Venarius (Cortex)",
-    subtitle: "5× Synthesising Fragment — standard fight: Cortex unique map",
-    costGroups: [
-      { label: "Uber", items: [{ cxId: "synthesising-fragment", label: "Synthesising Fragment", qty: 5 }] },
+    name: "Venarius (Cortex)",
+    subtitle: "Uber: 4× Synthesising Fragment · Standard: Cortex unique map",
+    sections: [
+      {
+        label: "Uber",
+        cost: [{ cxId: "synthesising-fragment", label: "Synthesising Fragment", qty: 4 }],
+        drops: [],
+        note: `${UBER_POOL_NOTE} No extra unique exclusives — adds 3 synthesised rares with rarer implicits.`,
+      },
+      {
+        label: "Standard",
+        cost: [],
+        costNote: "Cortex unique map — drops in maps, not exchange-traded.",
+        drops: [
+          D("Rational Doctrine"),
+          D("Bottled Faith"),
+          D("Garb of the Ephemeral"),
+          D("Offering to the Serpent"),
+          D("Circle of Ambition"),
+        ],
+      },
     ],
-    drops: [
-      BASE("Rational Doctrine"),
-      BASE("Bottled Faith"),
-      BASE("Garb of the Ephemeral"),
-      BASE("Offering to the Serpent"),
-      BASE("Circle of Ambition"),
-    ],
-    note: "Uber adds 3 extra synthesised rares with rarer implicits — much of the value is in those.",
   },
   {
     id: "incarnation-fear",
-    name: "Uber Incarnation of Fear",
-    subtitle: "4× Traumatic Fragment (harder, lv85) — Echo of Trauma enters the fight directly",
-    costGroups: [
-      { label: "Uber", items: [{ cxId: "traumatic-fragment", label: "Traumatic Fragment", qty: 4 }] },
-      { label: "Echo", items: [{ cxId: "echo-of-trauma", label: "Echo of Trauma", qty: 1 }] },
+    name: "Incarnation of Fear",
+    subtitle: "Uber: 4× Traumatic Fragment (lv85) · Echo of Trauma enters the fight directly",
+    sections: [
+      {
+        label: "Uber",
+        cost: [{ cxId: "traumatic-fragment", label: "Traumatic Fragment", qty: 4 }],
+        drops: [
+          D("Starcaller"),
+          D("Enmity's Embrace", ["Emnity's Embrace"]),
+          D("Coiling Whisper"),
+          D("Servant of Decay"),
+        ],
+        note: "Guaranteed one unique from the pool per kill (same pool on both routes).",
+      },
+      {
+        label: "Echo — direct entry",
+        cost: [{ cxId: "echo-of-trauma", label: "Echo of Trauma", qty: 1 }],
+        drops: [],
+      },
     ],
-    drops: [
-      BASE("Starcaller"),
-      BASE("Enmity's Embrace", ["Emnity's Embrace"]),
-      BASE("Coiling Whisper"),
-      BASE("Servant of Decay"),
-    ],
-    note: "Guaranteed one unique from the pool per kill.",
   },
   {
     id: "incarnation-neglect",
-    name: "Uber Incarnation of Neglect",
-    subtitle: "4× Lonely Fragment (harder, lv85) — Echo of Loneliness enters the fight directly",
-    costGroups: [
-      { label: "Uber", items: [{ cxId: "lonely-fragment", label: "Lonely Fragment", qty: 4 }] },
-      { label: "Echo", items: [{ cxId: "echo-of-loneliness", label: "Echo of Loneliness", qty: 1 }] },
+    name: "Incarnation of Neglect",
+    subtitle: "Uber: 4× Lonely Fragment (lv85) · Echo of Loneliness enters the fight directly",
+    sections: [
+      {
+        label: "Uber",
+        cost: [{ cxId: "lonely-fragment", label: "Lonely Fragment", qty: 4 }],
+        drops: [
+          D("Legacy of the Rose"),
+          D("Venarius' Astrolabe"),
+          D("Arkhon's Tools"),
+          D("Betrayal's String"),
+        ],
+        note: "Guaranteed one unique from the pool per kill (same pool on both routes).",
+      },
+      {
+        label: "Echo — direct entry",
+        cost: [{ cxId: "echo-of-loneliness", label: "Echo of Loneliness", qty: 1 }],
+        drops: [],
+      },
     ],
-    drops: [
-      BASE("Legacy of the Rose"),
-      BASE("Venarius' Astrolabe"),
-      BASE("Arkhon's Tools"),
-      BASE("Betrayal's String"),
-    ],
-    note: "Guaranteed one unique from the pool per kill.",
   },
   {
     id: "incarnation-dread",
-    name: "Uber Incarnation of Dread",
-    subtitle: "4× Reverent Fragment (harder, lv85) — Echo of Reverence enters the fight directly",
-    costGroups: [
-      { label: "Uber", items: [{ cxId: "reverent-fragment", label: "Reverent Fragment", qty: 4 }] },
-      { label: "Echo", items: [{ cxId: "echo-of-reverence", label: "Echo of Reverence", qty: 1 }] },
-    ],
-    drops: [
-      BASE("Wine of the Prophet"),
-      BASE("Seven Teachings"),
-      BASE("The Dark Monarch"),
-      BASE("Whispers of Infinity"),
-    ],
-    note: "Guaranteed one unique from the pool per kill.",
-  },
-  {
-    id: "the-feared",
-    name: "The Feared",
-    subtitle: "Maven's Invitation: The Feared — Atziri + Chayula + Cortex + Shaper + Elder at once",
-    costGroups: [
+    name: "Incarnation of Dread",
+    subtitle: "Uber: 4× Reverent Fragment (lv85) · Echo of Reverence enters the fight directly",
+    sections: [
       {
-        label: "Invitation",
-        items: [{ invName: "Maven's Invitation: The Feared", label: "Maven's Invitation: The Feared", qty: 1 }],
+        label: "Uber",
+        cost: [{ cxId: "reverent-fragment", label: "Reverent Fragment", qty: 4 }],
+        drops: [
+          D("Wine of the Prophet"),
+          D("Seven Teachings"),
+          D("The Dark Monarch"),
+          D("Whispers of Infinity"),
+        ],
+        note: "Guaranteed one unique from the pool per kill (same pool on both routes).",
+      },
+      {
+        label: "Echo — direct entry",
+        cost: [{ cxId: "echo-of-reverence", label: "Echo of Reverence", qty: 1 }],
+        drops: [],
       },
     ],
-    drops: [],
-    awakenedGems: true,
-    note:
-      "The invitation drops while running the five member fights (Cortex, Chayula's Domain, The Alluring Abyss, The Shaper's Realm, Uber Elder arena). Rewards: Awakened gems (below), the members' own loot pools and 10 Crescent Splinters.",
   },
 ];
 
@@ -296,18 +348,8 @@ export interface PricedCostItem {
   icon: string | null;
 }
 
-export interface PricedCostGroup {
-  label: string;
-  items: PricedCostItem[];
-  /** Sum over the priced items only. */
-  totalChaos: number;
-  /** How many items had no price (total is a lower bound when > 0). */
-  missing: number;
-}
-
 export interface BossDrop {
   name: string;
-  uberOnly: boolean;
   chaos: number | null;
   icon: string | null;
   listings: number | null;
@@ -316,14 +358,25 @@ export interface BossDrop {
   variants: number;
 }
 
+export interface BossSection {
+  label: string;
+  items: PricedCostItem[];
+  /** Sum over the priced items only. */
+  totalChaos: number;
+  /** How many items had no price (total is a lower bound when > 0). */
+  missing: number;
+  costNote?: string;
+  drops: BossDrop[];
+  note?: string;
+}
+
 export interface BossCard {
   id: string;
   name: string;
   subtitle: string;
-  costGroups: PricedCostGroup[];
-  drops: BossDrop[];
+  sections: BossSection[];
   note?: string;
-  /** Primary (first) cost group total — the uber entry cost. */
+  /** First section's total — the uber entry cost. */
   uberCostChaos: number | null;
   topDropChaos: number | null;
 }
@@ -430,7 +483,6 @@ export async function getBossBoard(league: string): Promise<BossBoard | null> {
       if (unique) {
         return {
           name: def.name,
-          uberOnly: def.uberOnly ?? false,
           chaos: unique.chaos,
           icon: unique.icon,
           listings: unique.listings,
@@ -442,7 +494,6 @@ export async function getBossBoard(league: string): Promise<BossBoard | null> {
       if (gem) {
         return {
           name: def.name,
-          uberOnly: def.uberOnly ?? false,
           chaos: gem.chaosValue ?? null,
           icon: gem.icon ?? null,
           listings: gem.listingCount ?? null,
@@ -454,7 +505,6 @@ export async function getBossBoard(league: string): Promise<BossBoard | null> {
       if (cx) {
         return {
           name: def.name,
-          uberOnly: def.uberOnly ?? false,
           chaos: cx.chaosRate,
           icon: cx.image,
           listings: null,
@@ -463,15 +513,7 @@ export async function getBossBoard(league: string): Promise<BossBoard | null> {
         };
       }
     }
-    return {
-      name: def.name,
-      uberOnly: def.uberOnly ?? false,
-      chaos: null,
-      icon: null,
-      listings: null,
-      trend7d: null,
-      variants: 0,
-    };
+    return { name: def.name, chaos: null, icon: null, listings: null, trend7d: null, variants: 0 };
   };
 
   const resolveCostItem = (item: CostItemDef): PricedCostItem => {
@@ -496,48 +538,37 @@ export async function getBossBoard(league: string): Promise<BossBoard | null> {
     return { label: item.label, qty: item.qty, unitChaos: null, icon: null };
   };
 
-  const awakenedTop: BossDrop[] = [...gems.entries()]
-    .map(([, line]) => ({
-      name: line.name ?? "Awakened gem",
-      uberOnly: false,
-      chaos: line.chaosValue ?? null,
-      icon: line.icon ?? null,
-      listings: line.listingCount ?? null,
-      trend7d: line.sparkLine?.totalChange ?? null,
-      variants: 1,
-    }))
-    .sort((a, b) => (b.chaos ?? 0) - (a.chaos ?? 0))
-    .slice(0, 12);
-
   const bosses: BossCard[] = BOSSES.map((def) => {
-    const costGroups: PricedCostGroup[] = def.costGroups.map((group) => {
-      const items = group.items.map(resolveCostItem);
+    const sections: BossSection[] = def.sections.map((sec) => {
+      const items = sec.cost.map(resolveCostItem);
       const priced = items.filter((i) => i.unitChaos !== null);
+      const drops = sec.drops
+        .map(resolveDrop)
+        .sort((a, b) => (b.chaos ?? -1) - (a.chaos ?? -1));
       return {
-        label: group.label,
+        label: sec.label,
         items,
         totalChaos: priced.reduce((sum, i) => sum + (i.unitChaos ?? 0) * i.qty, 0),
         missing: items.length - priced.length,
+        costNote: sec.costNote,
+        drops,
+        note: sec.note,
       };
     });
-    const drops = [
-      ...def.drops.map(resolveDrop),
-      ...(def.awakenedGems ? awakenedTop : []),
-    ].sort((a, b) => (b.chaos ?? -1) - (a.chaos ?? -1));
 
-    const primary = costGroups[0];
+    const primary = sections[0];
     const uberCostChaos =
       primary && primary.missing === 0 && primary.totalChaos > 0 ? primary.totalChaos : null;
-    const pricedDrops = drops.filter((d) => d.chaos !== null);
+    const allDropPrices = sections.flatMap((s) => s.drops).filter((d) => d.chaos !== null);
     return {
       id: def.id,
       name: def.name,
       subtitle: def.subtitle,
-      costGroups,
-      drops,
+      sections,
       note: def.note,
       uberCostChaos,
-      topDropChaos: pricedDrops.length > 0 ? pricedDrops[0].chaos : null,
+      topDropChaos:
+        allDropPrices.length > 0 ? Math.max(...allDropPrices.map((d) => d.chaos ?? 0)) : null,
     };
   });
 
