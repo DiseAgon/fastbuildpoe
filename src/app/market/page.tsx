@@ -280,6 +280,13 @@ export default function MarketPage() {
           >
             Breakout Radar
           </a>
+          <a
+            href="/market/bosses"
+            className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 font-medium text-accent transition-colors hover:bg-accent/20"
+            title="Uber fragment costs vs boss drop prices"
+          >
+            Boss Profit
+          </a>
           {board && (
             <select
               aria-label="League"

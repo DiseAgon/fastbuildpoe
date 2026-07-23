@@ -155,6 +155,13 @@ export default function BreakoutsPage() {
           >
             ← Market flips
           </a>
+          <a
+            href="/market/bosses"
+            className="rounded-full border border-border bg-surface px-3 py-1.5 text-muted transition-colors hover:border-accent/50 hover:text-accent"
+            title="Uber fragment costs vs boss drop prices"
+          >
+            Boss Profit
+          </a>
           {board && (
             <select
               aria-label="League"

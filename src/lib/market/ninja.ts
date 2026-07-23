@@ -142,7 +142,7 @@ function divinePriceOf(currency: NinjaOverview | null): number | null {
  * stash-based economy data: price, listing count and a 7-day sparkline.
  * ------------------------------------------------------------------------- */
 
-const UNIQUE_TYPES = [
+export const UNIQUE_TYPES = [
   "UniqueWeapon",
   "UniqueArmour",
   "UniqueAccessory",
@@ -150,7 +150,7 @@ const UNIQUE_TYPES = [
   "UniqueJewel",
 ] as const;
 
-interface NinjaStashLine {
+export interface NinjaStashLine {
   name?: string;
   icon?: string;
   baseType?: string | null;
@@ -158,7 +158,20 @@ interface NinjaStashLine {
   divineValue?: number;
   listingCount?: number;
   detailsId?: string;
+  gemLevel?: number;
+  gemQuality?: number;
+  corrupted?: boolean;
+  variant?: string | null;
   sparkLine?: { totalChange?: number | null; data?: Array<number | null> };
+}
+
+/** Lines of one stash-based economy category (uniques, gems, invitations…). */
+export async function stashLines(league: string, type: string): Promise<NinjaStashLine[]> {
+  const params = new URLSearchParams({ league, type });
+  const json = await getJson<{ lines?: NinjaStashLine[] }>(
+    `${NINJA_BASE}/stash/current/item/overview?${params}`,
+  );
+  return json?.lines ?? [];
 }
 
 export interface BreakoutRow {
@@ -197,13 +210,7 @@ function dailyDeltas(data: Array<number | null>): number[] {
 
 export async function getBreakoutBoard(league: string): Promise<BreakoutBoard | null> {
   const results = await Promise.all(
-    UNIQUE_TYPES.map(async (type) => {
-      const params = new URLSearchParams({ league, type });
-      const json = await getJson<{ lines?: NinjaStashLine[] }>(
-        `${NINJA_BASE}/stash/current/item/overview?${params}`,
-      );
-      return { type, lines: json?.lines ?? [] };
-    }),
+    UNIQUE_TYPES.map(async (type) => ({ type, lines: await stashLines(league, type) })),
   );
   if (results.every((r) => r.lines.length === 0)) return null;
 
