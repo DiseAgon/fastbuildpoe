@@ -62,7 +62,8 @@ export default function PairExplorerPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const [minVolume, setMinVolume] = useState("500");
+  // Empty = auto: scaled to the league's divine price.
+  const [minVolume, setMinVolume] = useState("");
   const [pairFilter, setPairFilter] = useState<PairFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("volumeChaos");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
@@ -98,10 +99,15 @@ export default function PairExplorerPage() {
   }, [load, league]);
   useAutoRefresh(refresh);
 
+  const autoMinVolume = useMemo(() => {
+    const divine = board?.divinePrice;
+    return divine && divine > 0 ? Math.max(50, Math.min(Math.round(divine / 2), 500)) : 100;
+  }, [board]);
+
   const rows = useMemo(() => {
     if (!board) return [];
     const query = search.trim().toLowerCase();
-    const min = Number.parseFloat(minVolume) || 0;
+    const min = minVolume === "" ? autoMinVolume : Number.parseFloat(minVolume) || 0;
     const filtered = board.rows.filter((r) => {
       if (pairFilter === "divine" && r.quoteName !== "Divine Orb") return false;
       if (pairFilter === "chaos" && r.quoteName !== "Chaos Orb") return false;
@@ -131,7 +137,7 @@ export default function PairExplorerPage() {
     };
     const sign = sortDir === "desc" ? 1 : -1;
     return [...filtered].sort((a, b) => sign * (value(b) - value(a))).slice(0, 200);
-  }, [board, search, minVolume, pairFilter, sortKey, sortDir]);
+  }, [board, search, minVolume, autoMinVolume, pairFilter, sortKey, sortDir]);
 
   const headerButton = (key: SortKey, label: string) => (
     <button
@@ -252,7 +258,8 @@ export default function PairExplorerPage() {
               value={minVolume}
               onChange={(e) => setMinVolume(e.target.value)}
               inputMode="numeric"
-              className="w-20 rounded-md border border-border bg-bg px-2 py-1 text-right text-text outline-none focus:border-accent"
+              placeholder={`auto ${autoMinVolume}`}
+              className="w-24 rounded-md border border-border bg-bg px-2 py-1 text-right text-text outline-none placeholder:text-muted/60 focus:border-accent"
             />
           </span>
           <span className="text-xs text-muted">

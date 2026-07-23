@@ -28,13 +28,23 @@ const SPREAD_CAPTURE = 0.5;
 /** Sustained market-making spreads live below this; bigger = one-off whale fills. */
 const GAP_ARTIFACT_CAP = 60;
 const MIN_SPREAD_GAP_PCT = 3;
-const MIN_OFFICIAL_VOL_CHAOS = 3000;
-const MIN_LIVE_VOL_CHAOS = 2000;
 const MIN_NET_EDGE_PCT = 0.4;
 /** Official-hour mid vs live price may differ at most this much — otherwise the
  * hour was dominated by mispriced fills and its gap is not repeatable. */
 const MAX_MID_DEVIATION = 0.4;
 const MAX_PICKS = 30;
+
+/**
+ * Volume gates scale with the divine price — the natural yardstick of an
+ * economy's size. A fresh league (divine ≈ 40-150c, day 1-3) has far smaller
+ * chaos-denominated volumes than Standard (divine ≈ 1300c), so fixed
+ * thresholds calibrated on Standard would filter everything out at launch.
+ */
+const clamp = (lo: number, v: number, hi: number): number => Math.max(lo, Math.min(hi, v));
+const minOfficialVolChaos = (divinePrice: number | null): number =>
+  divinePrice && divinePrice > 0 ? clamp(300, 2.5 * divinePrice, 3000) : 500;
+const minLiveVolChaos = (divinePrice: number | null): number =>
+  divinePrice && divinePrice > 0 ? clamp(200, 2 * divinePrice, 2000) : 300;
 
 export type PickStrategy = "loop-dcid" | "loop-dicd" | "spread-div" | "spread-chaos";
 
@@ -89,9 +99,8 @@ export interface PicksBoard {
 }
 
 function loopCandidates(row: FlipRow, divinePrice: number): Candidate[] {
-  if (row.perDivine === null || row.chaosRate <= 0 || row.volumeChaos < MIN_LIVE_VOL_CHAOS) {
-    return [];
-  }
+  if (row.perDivine === null || row.chaosRate <= 0) return [];
+  if (row.volumeChaos < minLiveVolChaos(divinePrice)) return [];
   const fwd = (divinePrice / (row.chaosRate * row.perDivine) - 1) * 100;
   const rev = ((row.chaosRate * row.perDivine) / divinePrice - 1) * 100;
   const make = (strategy: PickStrategy, pct: number): Candidate => ({
@@ -114,9 +123,10 @@ function spreadCandidate(
   volumeChaos: number | null,
   officialMid: number | null,
   liveMid: number | null,
+  divinePrice: number | null,
 ): Candidate | null {
   if (gapPct === null || gapPct < MIN_SPREAD_GAP_PCT || gapPct > GAP_ARTIFACT_CAP) return null;
-  if (volumeChaos === null || volumeChaos < MIN_OFFICIAL_VOL_CHAOS) return null;
+  if (volumeChaos === null || volumeChaos < minOfficialVolChaos(divinePrice)) return null;
   // Consistency check: if the hour's executed mid sits far from today's live
   // price, the "gap" was a transient mispricing, not a standing spread.
   if (officialMid !== null && liveMid !== null && liveMid > 0) {
@@ -163,6 +173,7 @@ export async function getFlipPicks(league: string): Promise<PicksBoard | null> {
           divineVolChaos(info?.volumeDiv1h ?? null, divinePrice),
           info?.divineMid ?? null,
           liveDivPerItem,
+          divinePrice,
         ),
         spreadCandidate(
           "spread-chaos",
@@ -170,6 +181,7 @@ export async function getFlipPicks(league: string): Promise<PicksBoard | null> {
           info?.volumeChaos1h ?? null,
           info?.chaosMid ?? null,
           row.chaosRate,
+          divinePrice,
         ),
       ].filter((c): c is Candidate => c !== null && c.netEdgePct >= MIN_NET_EDGE_PCT);
       if (candidates.length === 0) continue;

@@ -261,9 +261,11 @@ export default function FlipPicksPage() {
               you sit inside the extremes.
             </p>
             <p>
-              Gates: loops need ≥2,000c live volume; spreads need ≥3,000c traded through that exact
-              pair last hour, a 3–60% gap (bigger gaps are one-off whale fills, not repeatable
-              spreads), and the hour&apos;s executed mid must sit within 40% of the live price —
+              Gates: volume thresholds scale with the divine price, the yardstick of the league&apos;s
+              economy — floors of 200–300c on a fresh launch economy, tightening to 2,000–3,000c on
+              a Standard-sized one. Spreads additionally need a 3–60% gap (bigger gaps are one-off
+              whale fills, not repeatable spreads), and the hour&apos;s executed mid must sit within
+              40% of the live price —
               otherwise the gap was a transient mispricing and is discarded. Ranking = net edge ×
               log(volume), so a 4% edge on a
               200,000c/h market outranks a 30% edge on a dead one. Gold fees are not modelled (no

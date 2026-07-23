@@ -172,7 +172,9 @@ export default function MarketPage() {
   const [board, setBoard] = useState<(FlipBoard & { leagues: string[] }) | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [minVolume, setMinVolume] = useState("500");
+  // Empty = auto: scaled to the league's divine price (fresh-league volumes
+  // are far smaller in chaos terms than Standard's).
+  const [minVolume, setMinVolume] = useState("");
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("loopPct");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
@@ -209,9 +211,14 @@ export default function MarketPage() {
   }, [load, type, league]);
   useAutoRefresh(refresh);
 
+  const autoMinVolume = useMemo(() => {
+    const divine = board?.divinePrice;
+    return divine && divine > 0 ? Math.max(50, Math.min(Math.round(divine / 2), 500)) : 100;
+  }, [board]);
+
   const rows = useMemo(() => {
     if (!board) return [];
-    const min = Number.parseFloat(minVolume) || 0;
+    const min = minVolume === "" ? autoMinVolume : Number.parseFloat(minVolume) || 0;
     const query = search.trim().toLowerCase();
     const filtered = board.rows.filter(
       (r) => (query === "" || r.name.toLowerCase().includes(query)) &&
@@ -242,7 +249,7 @@ export default function MarketPage() {
     };
     const sign = sortDir === "desc" ? 1 : -1;
     return [...filtered].sort((a, b) => sign * (value(b) - value(a)));
-  }, [board, minVolume, search, sortKey, sortDir]);
+  }, [board, minVolume, autoMinVolume, search, sortKey, sortDir]);
 
   const headerButton = (key: SortKey, label: string) => (
     <button
@@ -358,7 +365,8 @@ export default function MarketPage() {
               value={minVolume}
               onChange={(e) => setMinVolume(e.target.value)}
               inputMode="numeric"
-              className="w-20 rounded-md border border-border bg-bg px-2 py-1 text-right text-text outline-none focus:border-accent"
+              placeholder={`auto ${autoMinVolume}`}
+              className="w-24 rounded-md border border-border bg-bg px-2 py-1 text-right text-text outline-none placeholder:text-muted/60 focus:border-accent"
             />
           </span>
         </div>
@@ -422,7 +430,7 @@ export default function MarketPage() {
           <BestRoutes
             rows={board.rows}
             divinePrice={board.divinePrice}
-            minVolume={Number.parseFloat(minVolume) || 0}
+            minVolume={minVolume === "" ? autoMinVolume : Number.parseFloat(minVolume) || 0}
           />
         )}
 
