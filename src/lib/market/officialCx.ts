@@ -173,7 +173,14 @@ async function ninjaNameIndex(
 
 function marketsOf(digest: Digest, league: string): OfficialMarket[] {
   const wanted = league.toLowerCase();
-  return (digest.markets ?? []).filter((m) => m.league.toLowerCase() === wanted);
+  const exact = (digest.markets ?? []).filter((m) => m.league.toLowerCase() === wanted);
+  if (exact.length > 0) return exact;
+  // League ids can differ slightly between poe.ninja and the official feed at
+  // a league launch — fall back to a containment match before giving up.
+  return (digest.markets ?? []).filter((m) => {
+    const have = m.league.toLowerCase();
+    return have.includes(wanted) || wanted.includes(have);
+  });
 }
 
 /** Full pair table for the newest published hour. */
@@ -265,6 +272,9 @@ export async function getItemPairIndex(league: string): Promise<ItemPairIndex | 
       divineGapPct: null,
       depthItems: null,
       volumeChaos1h: null,
+      volumeDiv1h: null,
+      chaosMid: null,
+      divineMid: null,
     };
     byName.set(key, fresh);
     return fresh;
@@ -283,11 +293,16 @@ export async function getItemPairIndex(league: string): Promise<ItemPairIndex | 
     const entry = entryFor(itemId);
     const stock = market.highest_stock[itemId] ?? 0;
     entry.depthItems = Math.max(entry.depthItems ?? 0, stock);
+    const mid =
+      bounds.lo !== null && bounds.hi !== null ? Math.sqrt(bounds.lo * bounds.hi) : null;
     if (isChaos) {
       entry.chaosGapPct = bounds.gapPct;
+      entry.chaosMid = mid;
       entry.volumeChaos1h = (entry.volumeChaos1h ?? 0) + (market.volume_traded[quoteId] ?? 0);
     } else {
       entry.divineGapPct = bounds.gapPct;
+      entry.divineMid = mid;
+      entry.volumeDiv1h = (entry.volumeDiv1h ?? 0) + (market.volume_traded[quoteId] ?? 0);
     }
   }
 

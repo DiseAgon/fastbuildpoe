@@ -70,6 +70,12 @@ export interface OfficialPairInfo {
   depthItems: number | null;
   /** Chaos traded through the item↔chaos pair during the hour. */
   volumeChaos1h: number | null;
+  /** Divines traded through the item↔divine pair during the hour. */
+  volumeDiv1h: number | null;
+  /** Geometric mid of the hour's executed chaos-per-item range. */
+  chaosMid: number | null;
+  /** Geometric mid of the hour's executed divine-per-item range. */
+  divineMid: number | null;
 }
 
 /** One row of the flip board, fully computed server-side. */

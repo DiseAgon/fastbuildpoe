@@ -306,6 +306,13 @@ export default function MarketPage() {
           >
             Pair Explorer
           </a>
+          <a
+            href="/market/picks"
+            className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 font-medium text-accent transition-colors hover:bg-accent/20"
+            title="Best flip per item across loop and spread strategies"
+          >
+            Flip Picks
+          </a>
           {board && (
             <select
               aria-label="League"
