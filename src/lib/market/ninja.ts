@@ -56,6 +56,22 @@ interface NinjaOverview {
   items?: NinjaItemMeta[];
 }
 
+/**
+ * Per-item stats from the OFFICIAL GGG exchange API (last published hour):
+ * real executed buy/sell gap and order-book depth. Joined onto flip rows by
+ * item name — see src/lib/market/officialCx.ts.
+ */
+export interface OfficialPairInfo {
+  /** Intra-hour executed price range on the item↔chaos pair, in %. */
+  chaosGapPct: number | null;
+  /** Intra-hour executed price range on the item↔divine pair, in %. */
+  divineGapPct: number | null;
+  /** Peak items listed on the exchange during the hour (real liquidity). */
+  depthItems: number | null;
+  /** Chaos traded through the item↔chaos pair during the hour. */
+  volumeChaos1h: number | null;
+}
+
 /** One row of the flip board, fully computed server-side. */
 export interface FlipRow {
   id: string;
@@ -80,6 +96,8 @@ export interface FlipRow {
   /** 7-day % change of the item's price. */
   trend7d: number | null;
   sparkline: Array<number | null>;
+  /** Official-API stats (last completed hour), when available. */
+  official?: OfficialPairInfo;
 }
 
 export interface FlipBoard {
@@ -89,6 +107,8 @@ export interface FlipBoard {
   divinePrice: number | null;
   rows: FlipRow[];
   fetchedAt: number;
+  /** Hour window of the official-API stats merged into rows, if any. */
+  officialHour?: { start: number; end: number };
 }
 
 const cache = new Map<string, { value: unknown; expires: number }>();

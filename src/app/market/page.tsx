@@ -17,7 +17,7 @@ const TYPE_TABS: Array<{ id: string; label: string }> = [
   { id: "Tattoo", label: "Tattoos" },
 ];
 
-type SortKey = "loopPct" | "volumeChaos" | "trend7d" | "chaosRate";
+type SortKey = "loopPct" | "volumeChaos" | "trend7d" | "chaosRate" | "gap";
 
 interface BoardResponse {
   success: boolean;
@@ -232,6 +232,12 @@ export default function MarketPage() {
           return r.trend7d ?? missing;
         case "chaosRate":
           return r.chaosRate;
+        case "gap": {
+          const gaps = [r.official?.chaosGapPct, r.official?.divineGapPct].filter(
+            (g): g is number => g !== null && g !== undefined,
+          );
+          return gaps.length > 0 ? Math.max(...gaps) : missing;
+        }
       }
     };
     const sign = sortDir === "desc" ? 1 : -1;
@@ -292,6 +298,13 @@ export default function MarketPage() {
             title="Uber fragment costs vs boss drop prices"
           >
             Boss Profit
+          </a>
+          <a
+            href="/market/pairs"
+            className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 font-medium text-accent transition-colors hover:bg-accent/20"
+            title="Official GGG exchange ledger — per-pair gap, depth and volume"
+          >
+            Pair Explorer
           </a>
           {board && (
             <select
@@ -357,6 +370,21 @@ export default function MarketPage() {
                 hour: "2-digit",
                 minute: "2-digit",
               })}
+              {board.officialHour && (
+                <>
+                  {" "}
+                  · Gap/Depth from official hour{" "}
+                  {new Date(board.officialHour.start * 1000).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                  –
+                  {new Date(board.officialHour.end * 1000).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </>
+              )}
             </span>
           )}
           <label className="sr-only" htmlFor="market-search">
@@ -393,7 +421,7 @@ export default function MarketPage() {
 
         {!loading && board && (
           <div className="overflow-x-auto rounded-[var(--radius)] border border-border bg-surface shadow-card">
-            <table className="w-full min-w-[760px] border-collapse text-sm">
+            <table className="w-full min-w-[960px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wide">
                   <th className="px-4 py-3 font-medium text-muted">Item</th>
@@ -406,13 +434,25 @@ export default function MarketPage() {
                   </th>
                   <th className="px-4 py-3 font-medium">{headerButton("loopPct", "Flip loop")}</th>
                   <th className="px-4 py-3 text-right font-medium">{headerButton("volumeChaos", "Volume (c)")}</th>
+                  <th
+                    className="px-4 py-3 text-right font-medium"
+                    title="Official GGG data, last completed hour: spread between the cheapest and priciest executed fill on the chaos pair (c) and divine pair (div)."
+                  >
+                    {headerButton("gap", "Gap 1h")}
+                  </th>
+                  <th
+                    className="px-4 py-3 text-right font-medium text-muted"
+                    title="Official GGG data: peak items listed on the exchange during the hour (real order-book depth), and chaos actually traded that hour."
+                  >
+                    Depth
+                  </th>
                   <th className="px-4 py-3 font-medium">{headerButton("trend7d", "7d trend")}</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-muted">
+                    <td colSpan={8} className="px-4 py-8 text-center text-muted">
                       No rows above this volume threshold.
                     </td>
                   </tr>
@@ -446,6 +486,47 @@ export default function MarketPage() {
                       <LoopBadge row={r} divinePrice={board.divinePrice} />
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums">{fmt(r.volumeChaos, 0)}</td>
+                    <td className="px-4 py-2 text-right">
+                      {r.official?.chaosGapPct != null || r.official?.divineGapPct != null ? (
+                        <>
+                          <span
+                            className={`tabular-nums ${
+                              (r.official.chaosGapPct ?? 0) >= 5 ||
+                              (r.official.divineGapPct ?? 0) >= 5
+                                ? "font-semibold text-accent"
+                                : "text-text"
+                            }`}
+                          >
+                            {r.official.chaosGapPct != null
+                              ? `${r.official.chaosGapPct.toFixed(1)}% c`
+                              : "—"}
+                          </span>
+                          <span className="block text-[11px] tabular-nums text-muted">
+                            {r.official.divineGapPct != null
+                              ? `${r.official.divineGapPct.toFixed(1)}% div`
+                              : ""}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-xs text-muted">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      {r.official?.depthItems != null ? (
+                        <>
+                          <span className="tabular-nums text-text">
+                            {fmt(r.official.depthItems, 0)}
+                          </span>
+                          {r.official.volumeChaos1h != null && (
+                            <span className="block text-[11px] tabular-nums text-muted">
+                              {fmt(r.official.volumeChaos1h, 0)}c/h
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-xs text-muted">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2">
                       <span className="flex items-center gap-2">
                         <Sparkline data={r.sparkline} />

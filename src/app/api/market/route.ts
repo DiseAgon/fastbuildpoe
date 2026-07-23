@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { clientKey, rateLimit } from "@/lib/rateLimit";
 import { getEconomyLeagues, getFlipBoard, isCxType, type FlipBoard } from "@/lib/market/ninja";
+import { getItemPairIndex, normalizeName } from "@/lib/market/officialCx";
 
 export const runtime = "nodejs";
 
@@ -33,7 +34,11 @@ export async function GET(request: Request): Promise<NextResponse<ApiResponse>> 
   const tempLeague = leagues.find((l) => !/standard|hardcore|ruthless|ssf/i.test(l));
   const league = url.searchParams.get("league") || tempLeague || leagues[0] || "Standard";
 
-  const board = await getFlipBoard(league, type);
+  const [board, official] = await Promise.all([
+    getFlipBoard(league, type),
+    // Official GGG stats are an enrichment — a failure must not break the board.
+    getItemPairIndex(league).catch(() => null),
+  ]);
   if (!board) {
     return NextResponse.json(
       {
@@ -45,5 +50,16 @@ export async function GET(request: Request): Promise<NextResponse<ApiResponse>> 
     );
   }
 
-  return NextResponse.json({ success: true, data: { ...board, leagues }, error: null });
+  const enriched: FlipBoard = official
+    ? {
+        ...board,
+        officialHour: { start: official.hourStart, end: official.hourEnd },
+        rows: board.rows.map((row) => {
+          const info = official.byName.get(normalizeName(row.name));
+          return info ? { ...row, official: info } : row;
+        }),
+      }
+    : board;
+
+  return NextResponse.json({ success: true, data: { ...enriched, leagues }, error: null });
 }
