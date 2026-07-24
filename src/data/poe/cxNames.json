@@ -933,5 +933,16 @@
  "Metadata/Items/DivinationCards/DivinationCardWintersEmbrace": "Winter's Embrace",
  "Metadata/Items/Currency/AncestralTattooTasalio6": "Loyalty Tattoo of Rakiata",
  "Metadata/Items/DivinationCards/DivinationCardAFamiliarCall": "A Familiar Call",
- "Metadata/Items/Currency/CurrencyEssenceTorment3": "Wailing Essence of Torment"
+ "Metadata/Items/Currency/CurrencyEssenceTorment3": "Wailing Essence of Torment",
+ "Metadata/Items/Currency/CurrencyAfflictionOrbGeneric": "Delirium Orb",
+ "Metadata/Items/DivinationCards/DivinationCardTheEscape": "The Escape",
+ "Metadata/Items/Currency/CurrencyCorruptMonolith": "Remnant of Corruption",
+ "Metadata/Items/DivinationCards/DivinationCardForbiddenPower": "Forbidden Power",
+ "Metadata/Items/Currency/CurrencyEssenceHatred4": "Wailing Essence of Hatred",
+ "Metadata/Items/DivinationCards/DivinationCardTheAdventuringSpirit": "The Adventuring Spirit",
+ "Metadata/Items/DivinationCards/DivinationCardTheWeb": "The Web",
+ "Metadata/Items/DivinationCards/DivinationCardTheFeast": "The Feast",
+ "Metadata/Items/DivinationCards/DivinationCardTerribleSecretOfSpace": "Terrible Secret of Space",
+ "Metadata/Items/Currency/CurrencyEssenceDoubt4": "Shrieking Essence of Doubt",
+ "Metadata/Items/DivinationCards/DivinationCardTheStandoff": "The Standoff"
 }
