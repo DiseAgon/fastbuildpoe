@@ -1115,5 +1115,10 @@
  "Metadata/Items/DivinationCards/DivinationCardTheLeviathan": "The Leviathan",
  "Metadata/Items/DivinationCards/DivinationCardTheThrone": "The Throne",
  "Metadata/Items/DivinationCards/DivinationCardBoundlessRealms": "Boundless Realms",
- "Metadata/Items/Currency/AncestralTattooSpecialNotableInt3": "Honoured Tattoo of the Flood"
+ "Metadata/Items/Currency/AncestralTattooSpecialNotableInt3": "Honoured Tattoo of the Flood",
+ "Metadata/Items/DivinationCards/DivinationCardJudgingVoices": "Judging Voices",
+ "Metadata/Items/DivinationCards/DivinationCardTheRoadToPower": "The Road to Power",
+ "Metadata/Items/DivinationCards/DivinationCardRecklessAmbition": "Reckless Ambition",
+ "Metadata/Items/DivinationCards/DivinationCardTheDeal": "The Deal",
+ "Metadata/Items/DivinationCards/DivinationCardDyingLight": "Dying Light"
 }
