@@ -1120,5 +1120,10 @@
  "Metadata/Items/DivinationCards/DivinationCardTheRoadToPower": "The Road to Power",
  "Metadata/Items/DivinationCards/DivinationCardRecklessAmbition": "Reckless Ambition",
  "Metadata/Items/DivinationCards/DivinationCardTheDeal": "The Deal",
- "Metadata/Items/DivinationCards/DivinationCardDyingLight": "Dying Light"
+ "Metadata/Items/DivinationCards/DivinationCardDyingLight": "Dying Light",
+ "Metadata/Items/DivinationCards/DivinationCardTheCheater": "The Cheater",
+ "Metadata/Items/DivinationCards/DivinationCardTheGreatestIntentions": "The Greatest Intentions",
+ "Metadata/Items/DivinationCards/DivinationCardTheEmptiness": "The Emptiness",
+ "Metadata/Items/Currency/CurrencyGraftAddModToRare": "Exalted Implant",
+ "Metadata/Items/Currency/KalguuranRune9": "Time Rune"
 }
