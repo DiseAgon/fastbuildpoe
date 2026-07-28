@@ -21,7 +21,30 @@ function pct(n: number | null): string {
   return `${n > 0 ? "+" : ""}${n.toFixed(1)}%`;
 }
 
-function ChaosPrice({
+/**
+ * Past a few divines a chaos figure stops being readable (10,911c vs 160 div),
+ * and nobody trades at that size in chaos anyway — so lead with divines and
+ * keep chaos as the secondary line.
+ */
+const DIVINE_LEAD_THRESHOLD = 3.5;
+
+/** Whichever unit reads better at this size, with the other one underneath. */
+function priceParts(
+  chaos: number,
+  divinePrice: number | null,
+): { primary: string; secondary: string | null } {
+  const divine = divinePrice && divinePrice > 0 ? chaos / divinePrice : null;
+  if (divine === null) return { primary: `${fmt(chaos, 1)}c`, secondary: null };
+  if (divine >= DIVINE_LEAD_THRESHOLD) {
+    return { primary: `${fmt(divine, 1)} div`, secondary: `${fmt(chaos, 0)}c` };
+  }
+  return {
+    primary: `${fmt(chaos, 1)}c`,
+    secondary: divine >= 0.5 ? `≈ ${fmt(divine, 1)} div` : null,
+  };
+}
+
+function Price({
   chaos,
   divinePrice,
   strong,
@@ -31,15 +54,13 @@ function ChaosPrice({
   strong?: boolean;
 }) {
   if (chaos === null) return <span className="text-xs text-muted">no price</span>;
-  const divine = divinePrice && divinePrice > 0 ? chaos / divinePrice : null;
+  const { primary, secondary } = priceParts(chaos, divinePrice);
   return (
     <span className="inline-flex flex-col items-end leading-tight">
       <span className={`tabular-nums ${strong ? "font-semibold text-text" : "text-text"}`}>
-        {fmt(chaos, 1)}c
+        {primary}
       </span>
-      {divine !== null && divine >= 0.5 && (
-        <span className="text-[11px] tabular-nums text-muted">≈ {fmt(divine, 1)} div</span>
-      )}
+      {secondary && <span className="text-[11px] tabular-nums text-muted">{secondary}</span>}
     </span>
   );
 }
@@ -67,7 +88,7 @@ function CostGroupRow({
               {item.qty}× {item.label}
             </span>
             <span className="tabular-nums text-text/80">
-              {item.unitChaos !== null ? `${fmt(item.unitChaos, 1)}c` : "—"}
+              {item.unitChaos !== null ? priceParts(item.unitChaos, divinePrice).primary : "—"}
             </span>
           </span>
         ))}
@@ -76,7 +97,7 @@ function CostGroupRow({
         {group.totalChaos > 0 ? (
           <span className="inline-flex items-baseline gap-1">
             {group.missing > 0 && <span className="text-xs text-muted">≥</span>}
-            <ChaosPrice chaos={group.totalChaos} divinePrice={divinePrice} strong />
+            <Price chaos={group.totalChaos} divinePrice={divinePrice} strong />
           </span>
         ) : (
           <span className="text-xs text-muted">no exchange price</span>
@@ -99,14 +120,15 @@ function DropRow({ drop, divinePrice }: { drop: BossDrop; divinePrice: number | 
           )}
           <span className="font-medium text-rarity-unique">{drop.name}</span>
           {drop.variants > 1 && (
-            <span className="text-[10px] text-muted" title="Highest-priced variant shown">
+            <span className="text-[10px] text-muted" title="Priced at its drop state (unlinked, base variant)">
+
               {drop.variants} variants
             </span>
           )}
         </span>
       </td>
       <td className="py-1.5 pl-2 text-right">
-        <ChaosPrice chaos={drop.chaos} divinePrice={divinePrice} />
+        <Price chaos={drop.chaos} divinePrice={divinePrice} />
       </td>
       <td className="py-1.5 pl-3 text-right text-xs tabular-nums text-muted">
         {drop.listings ?? "—"}

@@ -8,7 +8,7 @@
  *
  * Costs come from the in-game Currency Exchange (Fragment category) and the
  * trade-site Invitation category. Drops come from the unique-item overviews
- * plus SkillGem (Awakened gems) — all via poe.ninja.
+ * plus SkillGem (Awakened + Exceptional supports) — all via poe.ninja.
  *
  * Access recipes and drop pools verified against the official 3.29-era state:
  * every classic uber is opened with 4 boss-specific fragments dropped in T17
@@ -62,6 +62,14 @@ interface BossDef {
 
 const D = (name: string, aliases?: string[]): DropDef => ({ name, aliases });
 const UBER_POOL_NOTE = "The uber fight also drops everything in the Standard pool below.";
+/**
+ * 3.28 replaced most Awakened gems with Exceptional supports, each tied to one
+ * Atlas boss and unlocked account-wide by the Originator's Voidstone (first
+ * Incarnation kill). Both the standard and uber version of a boss drop its gem
+ * at roughly the same rate, so it is listed once on the uber section.
+ */
+const GEM_NOTE =
+  "Its Exceptional support gem drops from the standard fight too, at a similar rate — needs the Originator's Voidstone.";
 
 const BOSSES: BossDef[] = [
   {
@@ -80,8 +88,10 @@ const BOSSES: BossDef[] = [
           D("Awakened Empower Support"),
           D("Awakened Enlighten Support"),
           D("Awakened Enhance Support"),
+          D("Eclipse Support"),
+          D("Invert the Rules Support"),
         ],
-        note: `${UBER_POOL_NOTE} Plus Shiny Reliquary Key / Curio of Potential.`,
+        note: `${UBER_POOL_NOTE} ${GEM_NOTE} Plus Shiny Reliquary Key / Curio of Potential.`,
       },
       {
         label: "Standard",
@@ -106,8 +116,13 @@ const BOSSES: BossDef[] = [
       {
         label: "Uber",
         cost: [{ cxId: "awakening-fragment", label: "Awakening Fragment", qty: 4 }],
-        drops: [D("The Saviour"), D("Oriath's End"), D("The Tempest Rising")],
-        note: `${UBER_POOL_NOTE} Massive-ring Thread of Hope + Oubliette Reliquary Key are uber-only.`,
+        drops: [
+          D("The Saviour"),
+          D("Oriath's End"),
+          D("The Tempest Rising"),
+          D("Annihilation Support"),
+        ],
+        note: `${UBER_POOL_NOTE} ${GEM_NOTE} Massive-ring Thread of Hope + Oubliette Reliquary Key are uber-only.`,
       },
       {
         label: "Standard",
@@ -140,8 +155,9 @@ const BOSSES: BossDef[] = [
           D("The Annihilating Light"),
           D("Annihilation's Approach"),
           D("The Celestial Brace"),
+          D("Overheat Support"),
         ],
-        note: `${UBER_POOL_NOTE} Plus Archive Reliquary Key / Curio of Absorption.`,
+        note: `${UBER_POOL_NOTE} ${GEM_NOTE} Plus Archive Reliquary Key / Curio of Absorption.`,
       },
       {
         label: "Standard",
@@ -164,8 +180,13 @@ const BOSSES: BossDef[] = [
       {
         label: "Uber",
         cost: [{ cxId: "devouring-fragment", label: "Devouring Fragment", qty: 4 }],
-        drops: [D("Nimis"), D("Ashes of the Stars"), D("Ravenous Passion")],
-        note: `${UBER_POOL_NOTE} Plus Visceral Reliquary Key / Curio of Consumption.`,
+        drops: [
+          D("Nimis"),
+          D("Ashes of the Stars"),
+          D("Ravenous Passion"),
+          D("Gluttony Support"),
+        ],
+        note: `${UBER_POOL_NOTE} ${GEM_NOTE} Plus Visceral Reliquary Key / Curio of Consumption.`,
       },
       {
         label: "Standard",
@@ -194,8 +215,9 @@ const BOSSES: BossDef[] = [
           D("Echoes of Creation"),
           D("Entropic Devastation"),
           D("The Tides of Time"),
+          D("Voidstorm Support"),
         ],
-        note: `${UBER_POOL_NOTE} Plus Cosmic Reliquary Key.`,
+        note: `${UBER_POOL_NOTE} ${GEM_NOTE} Plus Cosmic Reliquary Key.`,
       },
       {
         label: "Standard",
@@ -225,8 +247,10 @@ const BOSSES: BossDef[] = [
           D("Soul Ascension"),
           D("Call of the Void"),
           D("The Devourer of Minds"),
+          D("Cooldown Recovery Support"),
+          D("Void Shockwave Support"),
         ],
-        note: `${UBER_POOL_NOTE} Plus the 2-curse Impresence variant, Decaying Reliquary Key / Curio of Decay.`,
+        note: `${UBER_POOL_NOTE} ${GEM_NOTE} Plus the 2-curse Impresence variant, Decaying Reliquary Key / Curio of Decay.`,
       },
       {
         label: "Standard",
@@ -339,8 +363,9 @@ const BOSSES: BossDef[] = [
           D("The Hallowed Monarch"),
           D("Whispers of Infinity"),
           D("Wellwater Phylactery"),
+          D("Congregation Support"),
         ],
-        note: `${UBER_POOL_NOTE} Guaranteed one unique per kill.`,
+        note: `${UBER_POOL_NOTE} ${GEM_NOTE} Guaranteed one unique per kill.`,
       },
       {
         label: "Standard",
@@ -449,11 +474,11 @@ function indexUniques(lineSets: NinjaStashLine[][]): Map<string, UniqueAgg> {
   return map;
 }
 
-/** Awakened gems: pick the drop-state price (uncorrupted, level 1 preferred). */
-function indexAwakenedGems(lines: NinjaStashLine[]): Map<string, NinjaStashLine> {
+/** Boss-dropped gems: price the drop state (uncorrupted, level 1, no quality). */
+function indexGems(lines: NinjaStashLine[]): Map<string, NinjaStashLine> {
   const byName = new Map<string, NinjaStashLine[]>();
   for (const line of lines) {
-    if (!line.name?.startsWith("Awakened") || line.corrupted) continue;
+    if (!line.name || line.corrupted) continue;
     if (!line.chaosValue || line.chaosValue <= 0) continue;
     const key = norm(line.name);
     byName.set(key, [...(byName.get(key) ?? []), line]);
@@ -492,7 +517,7 @@ export async function getBossBoard(league: string): Promise<BossBoard | null> {
     if (line.name) invByName.set(norm(line.name), line);
   }
   const uniques = indexUniques(uniqueSets);
-  const gems = indexAwakenedGems(gemLines);
+  const gems = indexGems(gemLines);
 
   const hasAnyData = cxById.size > 0 || uniques.size > 0 || invByName.size > 0;
   if (!hasAnyData) return null;
