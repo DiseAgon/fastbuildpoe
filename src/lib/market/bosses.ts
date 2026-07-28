@@ -12,9 +12,12 @@
  *
  * Access recipes and drop pools verified against the official 3.29-era state:
  * every classic uber is opened with 4 boss-specific fragments dropped in T17
- * maps (fragment system from the 3.24 rework, count later reduced 5 → 4); the
- * three Incarnation bosses (3.26) have harder versions via their Echo /
- * fragment items (3.27).
+ * maps (fragment system from the 3.24 rework, count later reduced 5 → 4).
+ *
+ * The three Incarnations (3.26) follow the same shape: the Echo item opens the
+ * standard fight, 4× fragment opens the uber one (3.27). Their two pools are
+ * genuinely different — the uber-only uniques are tagged "Uber Incarnation of
+ * X" on poedb, the standard ones plain "Incarnation of X".
  */
 
 import {
@@ -273,69 +276,82 @@ const BOSSES: BossDef[] = [
   {
     id: "incarnation-fear",
     name: "Incarnation of Fear",
-    subtitle: "Uber: 4× Traumatic Fragment (lv85) · Echo of Trauma enters the fight directly",
+    subtitle: "Uber: 4× Traumatic Fragment (lv85) · Standard: Echo of Trauma",
     sections: [
       {
         label: "Uber",
         cost: [{ cxId: "traumatic-fragment", label: "Traumatic Fragment", qty: 4 }],
+        drops: [D("Woespike"), D("The Caged Mammoth"), D("Coiling Whisper")],
+        note: `${UBER_POOL_NOTE} Guaranteed one unique per kill.`,
+      },
+      {
+        label: "Standard",
+        cost: [{ cxId: "echo-of-trauma", label: "Echo of Trauma", qty: 1 }],
         drops: [
           D("Starcaller"),
           D("Enmity's Embrace", ["Emnity's Embrace"]),
-          D("Coiling Whisper"),
           D("Servant of Decay"),
+          D("The Unseen Hue"),
         ],
-        note: "Guaranteed one unique from the pool per kill (same pool on both routes).",
-      },
-      {
-        label: "Echo — direct entry",
-        cost: [{ cxId: "echo-of-trauma", label: "Echo of Trauma", qty: 1 }],
-        drops: [],
+        note: "Guaranteed one unique from the pool per kill.",
       },
     ],
   },
   {
     id: "incarnation-neglect",
     name: "Incarnation of Neglect",
-    subtitle: "Uber: 4× Lonely Fragment (lv85) · Echo of Loneliness enters the fight directly",
+    subtitle: "Uber: 4× Lonely Fragment (lv85) · Standard: Echo of Loneliness",
     sections: [
       {
         label: "Uber",
         cost: [{ cxId: "lonely-fragment", label: "Lonely Fragment", qty: 4 }],
         drops: [
-          D("Legacy of the Rose"),
-          D("Venarius' Astrolabe"),
-          D("Arkhon's Tools"),
-          D("Betrayal's String"),
+          D("Festering Resentment"),
+          D("Bitter Instinct"),
+          D("Haunting Memories"),
+          D("Refuge in Isolation"),
         ],
-        note: "Guaranteed one unique from the pool per kill (same pool on both routes).",
+        note: `${UBER_POOL_NOTE} Guaranteed one unique per kill.`,
       },
       {
-        label: "Echo — direct entry",
+        label: "Standard",
         cost: [{ cxId: "echo-of-loneliness", label: "Echo of Loneliness", qty: 1 }],
-        drops: [],
+        drops: [
+          D("Legacy of the Rose"),
+          D("Venarius' Astrolabe"),
+          D("The Arkhon's Tools"),
+          D("Betrayal's Sting"),
+        ],
+        note: "Guaranteed one unique from the pool per kill.",
       },
     ],
   },
   {
     id: "incarnation-dread",
     name: "Incarnation of Dread",
-    subtitle: "Uber: 4× Reverent Fragment (lv85) · Echo of Reverence enters the fight directly",
+    subtitle: "Uber: 4× Reverent Fragment (lv85) · Standard: Echo of Reverence",
     sections: [
       {
         label: "Uber",
         cost: [{ cxId: "reverent-fragment", label: "Reverent Fragment", qty: 4 }],
         drops: [
+          D("The Golden Charlatan"),
+          D("The Hallowed Monarch"),
+          D("Whispers of Infinity"),
+          D("Wellwater Phylactery"),
+        ],
+        note: `${UBER_POOL_NOTE} Guaranteed one unique per kill.`,
+      },
+      {
+        label: "Standard",
+        cost: [{ cxId: "echo-of-reverence", label: "Echo of Reverence", qty: 1 }],
+        drops: [
           D("Wine of the Prophet"),
           D("Seven Teachings"),
           D("The Dark Monarch"),
-          D("Whispers of Infinity"),
+          D("Bonemeld"),
         ],
-        note: "Guaranteed one unique from the pool per kill (same pool on both routes).",
-      },
-      {
-        label: "Echo — direct entry",
-        cost: [{ cxId: "echo-of-reverence", label: "Echo of Reverence", qty: 1 }],
-        drops: [],
+        note: "Guaranteed one unique from the pool per kill.",
       },
     ],
   },
@@ -354,7 +370,7 @@ export interface BossDrop {
   icon: string | null;
   listings: number | null;
   trend7d: number | null;
-  /** Number of price lines merged (unique variants); price shown is the max. */
+  /** Distinct variant rolls priced separately (0 when the unique has none). */
   variants: number;
 }
 
@@ -398,32 +414,37 @@ interface UniqueAgg {
   variants: number;
 }
 
+/**
+ * poe.ninja splits a unique into one price line per link tier (…-5l, …-6l).
+ * A boss drops the item unlinked, so the 5L/6L lines price the linking, not the
+ * drop — pricing off the max overstated Servant of Decay by 87× and Seven
+ * Teachings by 58×. Price from the unlinked line and count only genuinely
+ * distinct `variant` labels (Watcher's Eye mods etc.) as variants.
+ */
 function indexUniques(lineSets: NinjaStashLine[][]): Map<string, UniqueAgg> {
-  const map = new Map<string, UniqueAgg>();
+  const byKey = new Map<string, NinjaStashLine[]>();
   for (const lines of lineSets) {
     for (const line of lines) {
       if (!line.name || !line.chaosValue || line.chaosValue <= 0) continue;
       const key = norm(line.name);
-      const prev = map.get(key);
-      if (!prev) {
-        map.set(key, {
-          chaos: line.chaosValue,
-          icon: line.icon ?? null,
-          listings: line.listingCount ?? 0,
-          trend7d: line.sparkLine?.totalChange ?? null,
-          variants: 1,
-        });
-        continue;
-      }
-      const isMax = line.chaosValue > prev.chaos;
-      map.set(key, {
-        chaos: isMax ? line.chaosValue : prev.chaos,
-        icon: isMax ? (line.icon ?? prev.icon) : prev.icon,
-        listings: prev.listings + (line.listingCount ?? 0),
-        trend7d: isMax ? (line.sparkLine?.totalChange ?? prev.trend7d) : prev.trend7d,
-        variants: prev.variants + 1,
-      });
+      byKey.set(key, [...(byKey.get(key) ?? []), line]);
     }
+  }
+
+  const map = new Map<string, UniqueAgg>();
+  for (const [key, lines] of byKey) {
+    const dropState = [...lines].sort((a, b) => {
+      const byLinks = (a.links ?? 0) - (b.links ?? 0);
+      if (byLinks !== 0) return byLinks;
+      return (b.listingCount ?? 0) - (a.listingCount ?? 0);
+    })[0];
+    map.set(key, {
+      chaos: dropState.chaosValue ?? 0,
+      icon: dropState.icon ?? null,
+      listings: lines.reduce((sum, l) => sum + (l.listingCount ?? 0), 0),
+      trend7d: dropState.sparkLine?.totalChange ?? null,
+      variants: new Set(lines.map((l) => l.variant).filter(Boolean)).size,
+    });
   }
   return map;
 }

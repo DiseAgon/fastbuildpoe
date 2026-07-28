@@ -180,6 +180,8 @@ export interface NinjaStashLine {
   name?: string;
   icon?: string;
   baseType?: string | null;
+  /** Link count of this price line; absent on the unlinked (drop-state) line. */
+  links?: number;
   chaosValue?: number;
   divineValue?: number;
   listingCount?: number;
