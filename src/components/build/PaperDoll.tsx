@@ -18,18 +18,38 @@ import { ItemCard } from "./ItemCard";
  * itself lives in the `.paper-doll` rules in globals.css, which need a media
  * query to fall back to a two-up flow on phones.
  */
-const LAYOUT: Array<{ slot: string; label: string; area: string }> = [
-  { slot: "Weapon 1", label: "Weapon", area: "w1" },
+/** `tall` marks the row-spanning slots, which stack their art above the name so
+ *  the extra height reads as the game's big weapon/armour cells, not dead space. */
+const LAYOUT: Array<{ slot: string; label: string; area: string; tall?: boolean }> = [
+  { slot: "Weapon 1", label: "Weapon", area: "w1", tall: true },
   { slot: "Helmet", label: "Helmet", area: "helm" },
   { slot: "Amulet", label: "Amulet", area: "amu" },
-  { slot: "Weapon 2", label: "Offhand", area: "w2" },
-  { slot: "Body Armour", label: "Body", area: "body" },
+  { slot: "Weapon 2", label: "Offhand", area: "w2", tall: true },
+  { slot: "Body Armour", label: "Body", area: "body", tall: true },
   { slot: "Ring 1", label: "Ring", area: "r1" },
   { slot: "Ring 2", label: "Ring", area: "r2" },
   { slot: "Gloves", label: "Gloves", area: "glv" },
   { slot: "Belt", label: "Belt", area: "belt" },
   { slot: "Boots", label: "Boots", area: "bts" },
 ];
+
+/**
+ * Each item's share of the group's total cost, so a slot can draw a hairline bar
+ * showing where the build's money went. Normalised against the most expensive
+ * item rather than the sum, or a single dominant item flattens everything else
+ * to an invisible sliver.
+ */
+function costShares(
+  items: ParsedItem[],
+  priceOf: (item: ParsedItem) => number,
+): Map<ParsedItem, number> {
+  const prices = items.map(priceOf);
+  const peak = Math.max(0, ...prices);
+  const out = new Map<ParsedItem, number>();
+  if (peak <= 0) return out;
+  items.forEach((item, i) => out.set(item, prices[i] / peak));
+  return out;
+}
 
 /** Anything not in the fixed doll layout (swap weapons, unrecognised slots). */
 function extraGear(gear: ParsedItem[]): ParsedItem[] {
@@ -48,10 +68,11 @@ function Strip({
   selectedKey: string | null;
   onSelect: (item: ParsedItem) => void;
 }) {
-  const { keyFor, sumItems, countUnpriced } = useBuild();
+  const { keyFor, sumItems, countUnpriced, getPrice } = useBuild();
   if (items.length === 0) return null;
   const total = sumItems(items);
   const unpriced = countUnpriced(items);
+  const shares = costShares(items, (i) => Number.parseFloat(getPrice(keyFor(i)) || "") || 0);
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2">
@@ -76,6 +97,7 @@ function Strip({
             slotLabel={item.slot ?? ""}
             selected={selectedKey === keyFor(item)}
             onSelect={() => onSelect(item)}
+            share={shares.get(item) ?? 0}
           />
         ))}
       </div>
@@ -84,7 +106,7 @@ function Strip({
 }
 
 export function PaperDoll({ view }: { view: ItemSetView }) {
-  const { keyFor, sumItems, countUnpriced } = useBuild();
+  const { keyFor, sumItems, countUnpriced, getPrice } = useBuild();
   const [selected, setSelected] = useState<ParsedItem | null>(null);
 
   const bySlot = useMemo(() => {
@@ -98,6 +120,7 @@ export function PaperDoll({ view }: { view: ItemSetView }) {
   const total = sumItems(equipped);
   const unpriced = countUnpriced(equipped);
   const selectedKey = selected ? keyFor(selected) : null;
+  const gearShares = costShares(equipped, (i) => Number.parseFloat(getPrice(keyFor(i)) || "") || 0);
 
   // Numbering matches the list view's reading order so the two agree.
   const numberOf = (item: ParsedItem): number => {
@@ -126,20 +149,26 @@ export function PaperDoll({ view }: { view: ItemSetView }) {
           )}
         </div>
 
-        <div className="paper-doll">
-          {LAYOUT.map(({ slot, label, area }) => (
-            <GearSlot
-              key={slot}
-              item={bySlot.get(slot) ?? null}
-              slotLabel={label}
-              selected={selectedKey !== null && selectedKey === keyOrNull(bySlot.get(slot), keyFor)}
-              onSelect={() => {
-                const item = bySlot.get(slot);
-                if (item) setSelected((prev) => (prev === item ? null : item));
-              }}
-              style={{ "--slot-area": area } as CSSProperties}
-            />
-          ))}
+        <div className="doll-panel">
+          <div className="paper-doll">
+            {LAYOUT.map(({ slot, label, area, tall }) => {
+              const item = bySlot.get(slot) ?? null;
+              return (
+                <GearSlot
+                  key={slot}
+                  item={item}
+                  slotLabel={label}
+                  selected={selectedKey !== null && selectedKey === keyOrNull(item, keyFor)}
+                  onSelect={() => {
+                    if (item) setSelected((prev) => (prev === item ? null : item));
+                  }}
+                  share={item ? (gearShares.get(item) ?? 0) : 0}
+                  tall={tall}
+                  style={{ "--slot-area": area } as CSSProperties}
+                />
+              );
+            })}
+          </div>
         </div>
 
         <Strip
@@ -182,7 +211,7 @@ export function PaperDoll({ view }: { view: ItemSetView }) {
 }
 
 function keyOrNull(
-  item: ParsedItem | undefined,
+  item: ParsedItem | null | undefined,
   keyFor: (i: ParsedItem) => string,
 ): string | null {
   return item ? keyFor(item) : null;

@@ -27,6 +27,16 @@
   --rarity-rare: oklch(52% 0.14 92);
   --rarity-unique: oklch(50% 0.15 52);
   --rarity-gem: oklch(50% 0.12 190);
+  /* Same rarity colours as bare oklch components, so a slot can tint itself at
+     any alpha with `oklch(var(--slot-tint) / a)`. Plain var substitution —
+     avoids the relative-colour `oklch(from ...)` syntax, which silently drops
+     the whole declaration on engines that don't support it. */
+  --rarity-normal-c: 45% 0 0;
+  --rarity-magic-c: 50% 0.18 262;
+  --rarity-rare-c: 52% 0.14 92;
+  --rarity-unique-c: 50% 0.15 52;
+  --rarity-gem-c: 50% 0.12 190;
+  --border-c: 88% 0.028 70;
 
   --font-serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino,
     Georgia, "Times New Roman", serif;
@@ -77,15 +87,34 @@ body {
   }
 }
 
-/*
- * Paper-doll equipment grid.
- *
- * The in-game silhouette needs four columns to read, which is too cramped
- * below ~640px (names clip to "The G..."). So phones get a plain two-up flow in
- * slot order, and the named areas only kick in once there is room. Each cell
- * carries its area in --slot-area, consumed solely inside the media query, so
- * the mobile layout stays natural auto-placement.
- */
+/* ----------------------------------------------------------------------------
+   Paper doll — the equipment panel.
+
+   Leans into the system's "depth / tactile / skeuomorphic" direction: the panel
+   is a recessed tray, empty slots are sockets cut into it, and equipped items
+   are tiles lifted out of it with their rarity bleeding into the border and
+   glow. Colour is doing real work here — rarity is the item's identity, and the
+   cost bar shows where the build's money actually went.
+
+   Only transform / opacity / box-shadow animate, so motion stays on the
+   compositor. Reduced-motion is handled globally.
+---------------------------------------------------------------------------- */
+.doll-panel {
+  position: relative;
+  border-radius: var(--radius);
+  padding: 0.625rem;
+  background:
+    radial-gradient(120% 90% at 50% -20%, oklch(88% 0.05 70 / 0.5), transparent 60%),
+    linear-gradient(180deg, oklch(94% 0.022 72), oklch(97% 0.014 78));
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0 0 / 0.7),
+    inset 0 2px 10px oklch(45% 0.06 60 / 0.12),
+    0 1px 0 oklch(100% 0 0 / 0.6);
+}
+
+/* Equipment grid: two-up on phones, the in-game silhouette from 640px where
+   there is room for four columns. Each cell carries its area in --slot-area,
+   read only inside the query, so mobile stays plain auto-placement. */
 .paper-doll {
   display: grid;
   gap: 0.375rem;
@@ -95,7 +124,9 @@ body {
 @media (min-width: 640px) {
   .paper-doll {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-template-rows: repeat(4, minmax(58px, 1fr));
+    /* Explicit equal rows, or the rows no cell *starts* in collapse and the
+       row-spanning weapon and body tiles stop reading as tall. */
+    grid-template-rows: repeat(4, minmax(62px, 1fr));
     grid-template-areas:
       "w1  helm amu  w2"
       "w1  body body w2"
@@ -106,4 +137,156 @@ body {
   .paper-doll > * {
     grid-area: var(--slot-area);
   }
+}
+
+/* --- slots ---------------------------------------------------------------- */
+
+.gear-slot {
+  --slot-tint: var(--border-c);
+  --slot-share: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 100%;
+  min-height: 62px;
+  padding: 0.4rem 0.5rem;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid oklch(var(--slot-tint) / 0.45);
+  background: linear-gradient(180deg, var(--color-surface), oklch(97% 0.012 78));
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0 0 / 0.9),
+    0 1px 2px oklch(45% 0.06 60 / 0.1);
+  text-align: left;
+  transition:
+    transform var(--duration-fast) var(--ease-out-expo),
+    box-shadow var(--duration-fast) var(--ease-out-expo),
+    border-color var(--duration-fast) var(--ease-out-expo);
+}
+
+/* Rarity wash bleeding in from the artwork side. */
+.gear-slot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    oklch(var(--slot-tint) / 0.14),
+    transparent 58%
+  );
+}
+
+.gear-slot:hover {
+  transform: translateY(-2px);
+  border-color: oklch(var(--slot-tint) / 0.8);
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0 0 / 0.9),
+    0 6px 16px -6px oklch(var(--slot-tint) / 0.5),
+    0 2px 4px oklch(45% 0.06 60 / 0.12);
+}
+
+.gear-slot:active {
+  transform: translateY(0);
+}
+
+.gear-slot[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0 0 / 0.9),
+    0 0 0 1px var(--color-accent),
+    0 8px 20px -8px oklch(56% 0.18 42 / 0.45);
+}
+
+.gear-slot[data-rarity="unique"] { --slot-tint: var(--rarity-unique-c); }
+.gear-slot[data-rarity="rare"] { --slot-tint: var(--rarity-rare-c); }
+.gear-slot[data-rarity="magic"] { --slot-tint: var(--rarity-magic-c); }
+.gear-slot[data-rarity="gem"] { --slot-tint: var(--rarity-gem-c); }
+.gear-slot[data-rarity="normal"] { --slot-tint: var(--rarity-normal-c); }
+
+/* Artwork sits on a socket plate, recessed like a real inventory cell. */
+.gear-slot__plate {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  height: 42px;
+  width: 42px;
+  border-radius: 6px;
+  background:
+    radial-gradient(70% 70% at 50% 30%, oklch(var(--slot-tint) / 0.16), transparent 70%),
+    linear-gradient(180deg, oklch(93% 0.018 72), oklch(97% 0.01 78));
+  box-shadow:
+    inset 0 0 0 1px oklch(var(--slot-tint) / 0.3),
+    inset 0 2px 5px oklch(45% 0.06 60 / 0.16);
+}
+
+.gear-slot__plate img {
+  height: 100%;
+  width: 100%;
+  object-fit: contain;
+  /* Item art is drawn for dark backgrounds; a touch of contrast keeps it from
+     washing out on cream without altering the colours. */
+  filter: drop-shadow(0 1px 1px oklch(30% 0.04 60 / 0.35));
+}
+
+/* Row-spanning cells (weapon, offhand, body) get the game's big-art treatment
+   rather than leaving the extra height hollow. Only above the breakpoint, where
+   those cells actually span rows. */
+@media (min-width: 640px) {
+  .gear-slot[data-tall="true"] {
+    flex-direction: column;
+    /* Centred, or the wide body-armour cell leaves a large void to the right. */
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    text-align: center;
+  }
+
+  .gear-slot[data-tall="true"] .gear-slot__plate {
+    height: 60px;
+    width: 60px;
+  }
+}
+
+/* Magic item names carry long unbreakable words ("Abecedarian's Bismuth Flask
+   of the Kakapo"), which overflow a narrow slot even with line-clamp — clamping
+   limits lines, not word width. Break anywhere so they wrap instead. */
+.gear-slot__name {
+  overflow-wrap: anywhere;
+}
+
+/* Share of the build's cost, as a hairline along the bottom edge. */
+.gear-slot__bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: calc(var(--slot-share) * 100%);
+  background: linear-gradient(
+    90deg,
+    oklch(var(--slot-tint) / 0.55),
+    oklch(var(--slot-tint) / 0.95)
+  );
+  border-top-right-radius: 2px;
+}
+
+/* Empty slot: a socket cut into the tray, not a missing card. */
+.gear-slot--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 62px;
+  padding: 0 0.5rem;
+  border-radius: 8px;
+  border: 1px dashed oklch(80% 0.03 70 / 0.9);
+  background: linear-gradient(180deg, oklch(94% 0.018 72 / 0.5), oklch(96% 0.012 78 / 0.3));
+  box-shadow: inset 0 2px 6px oklch(45% 0.06 60 / 0.1);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: oklch(62% 0.03 70);
+  text-align: center;
 }

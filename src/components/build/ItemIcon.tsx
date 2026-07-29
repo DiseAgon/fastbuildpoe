@@ -34,6 +34,7 @@ export function ItemIcon({
   category = "gear",
   alt,
   size = 44,
+  bare = false,
 }: {
   icon: string | null;
   rarity: Rarity;
@@ -41,13 +42,16 @@ export function ItemIcon({
   category?: ItemCategory;
   alt: string;
   size?: number;
+  /** Drop the bordered plate — for callers that already draw one (paper doll). */
+  bare?: boolean;
 }) {
   const box = { width: size, height: size };
+  const plate = bare ? "" : `rounded-md border bg-bg/60 ${RARITY_BORDER_CLASS[rarity]}`;
   if (!icon) {
     return (
       <span
         style={box}
-        className={`grid shrink-0 place-items-center rounded-md border bg-bg/60 ${RARITY_BORDER_CLASS[rarity]}`}
+        className={`grid shrink-0 place-items-center ${plate}`}
         aria-hidden
       >
         <svg viewBox="0 0 24 24" className="h-[55%] w-[55%] text-muted/45" aria-hidden>
@@ -59,7 +63,7 @@ export function ItemIcon({
   return (
     <span
       style={box}
-      className={`grid shrink-0 place-items-center overflow-hidden rounded-md border bg-bg/60 ${RARITY_BORDER_CLASS[rarity]}`}
+      className={`grid shrink-0 place-items-center overflow-hidden ${plate}`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
