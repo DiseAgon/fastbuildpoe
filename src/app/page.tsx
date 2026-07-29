@@ -6,6 +6,7 @@ import { SignInPoe } from "@/components/import/SignInPoe";
 import { HowToUse } from "@/components/HowToUse";
 import { CategorySection } from "@/components/build/CategorySection";
 import { GemSection } from "@/components/build/GemSection";
+import { PaperDoll } from "@/components/build/PaperDoll";
 import { BuildProvider, formatDivine, useBuild } from "@/components/build/BuildContext";
 import { DivineIcon } from "@/components/build/DivineIcon";
 import { ShareButton } from "@/components/build/ShareButton";
@@ -87,6 +88,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState<SavedSession[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [gearView, setGearView] = useState<"doll" | "list">("doll");
 
   useEffect(() => {
     setSessions(loadSessions());
@@ -382,7 +384,7 @@ export default function Home() {
                     {build.ascendancy ? ` · ${build.ascendancy}` : ""}
                     {build.level ? <span className="text-muted"> · Lv {build.level}</span> : null}
                   </h2>
-                  <div className="flex items-center gap-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
                     <GrandTotal items={allItemsOf(view)} />
                     <ShareButton
                       game={game}
@@ -441,11 +443,38 @@ export default function Home() {
                 <p className="text-muted">No items found in this version.</p>
               ) : (
                 <div className="flex flex-col gap-8">
-                  <CategorySection label="Gear" items={view.gear} startNumber={offsets.gear} defaultOpen={false} />
-                  <CategorySection label="Jewels" items={view.jewels} startNumber={offsets.jewels} defaultOpen={false} />
-                  <GemSection groups={view.gems} startNumber={offsets.gems} defaultOpen={false} />
-                  <CategorySection label="Flasks" items={view.flasks} startNumber={offsets.flasks} defaultOpen={false} />
-                  <CategorySection label="Charms" items={view.charms} startNumber={offsets.charms} defaultOpen={false} />
+                  <div className="flex items-center gap-1 self-start rounded-full border border-border bg-surface p-0.5 text-xs">
+                    {(["doll", "list"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setGearView(mode)}
+                        aria-pressed={gearView === mode}
+                        className={`rounded-full px-3 py-1 transition-colors ${
+                          gearView === mode
+                            ? "bg-accent/15 font-medium text-accent"
+                            : "text-muted hover:text-accent"
+                        }`}
+                      >
+                        {mode === "doll" ? "Paper doll" : "List"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {gearView === "doll" ? (
+                    <>
+                      <PaperDoll view={view} />
+                      <GemSection groups={view.gems} startNumber={offsets.gems} defaultOpen={false} />
+                    </>
+                  ) : (
+                    <>
+                      <CategorySection label="Gear" items={view.gear} startNumber={offsets.gear} defaultOpen={false} />
+                      <CategorySection label="Jewels" items={view.jewels} startNumber={offsets.jewels} defaultOpen={false} />
+                      <GemSection groups={view.gems} startNumber={offsets.gems} defaultOpen={false} />
+                      <CategorySection label="Flasks" items={view.flasks} startNumber={offsets.flasks} defaultOpen={false} />
+                      <CategorySection label="Charms" items={view.charms} startNumber={offsets.charms} defaultOpen={false} />
+                    </>
+                  )}
                 </div>
               )}
             </div>
