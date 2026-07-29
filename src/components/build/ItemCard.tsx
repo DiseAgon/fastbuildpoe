@@ -35,7 +35,7 @@ export function ItemCard({ item, number }: { item: ParsedItem; number: number })
         >
           {number}
         </span>
-        <ItemIcon icon={quote?.icon ?? null} rarity={item.rarity} alt={displayName} />
+        <ItemIcon icon={quote?.icon ?? null} rarity={item.rarity} category={item.category} alt={displayName} />
         <div className="min-w-0 flex-1">
           <h3
             className={`truncate font-serif text-lg leading-tight ${RARITY_TEXT_CLASS[item.rarity]}`}

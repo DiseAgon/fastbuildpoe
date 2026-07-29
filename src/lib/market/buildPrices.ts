@@ -19,6 +19,7 @@ import {
   indexUniques,
   nearestGemTier,
   norm,
+  resolveBaseIcon,
   type UniqueAgg,
 } from "./priceIndex";
 
@@ -120,16 +121,18 @@ export async function priceBuildItems(
     };
   }
 
-  const [divinePrice, gemLines, baseLines, ...uniqueSets] = await Promise.all([
+  const [divinePrice, gemLines, baseLines, clusterLines, ...uniqueSets] = await Promise.all([
     getDivinePrice(league),
     stashLines(league, "SkillGem"),
     stashLines(league, "BaseType"),
+    // Cluster jewels are absent from BaseType and have their own category.
+    stashLines(league, "ClusterJewel"),
     ...UNIQUE_TYPES.map((t) => stashLines(league, t)),
   ]);
 
   const uniques = indexUniques(uniqueSets);
   const gemTiers = indexGemTiers(gemLines);
-  const baseIcons = indexBaseIcons(baseLines);
+  const baseIcons = indexBaseIcons([baseLines, clusterLines]);
 
   if (uniques.size === 0 && gemTiers.size === 0) {
     return {
@@ -142,7 +145,7 @@ export async function priceBuildItems(
   }
 
   const quotes = items.map((item): ItemQuote => {
-    const baseIcon = baseIcons.get(norm(item.baseType)) ?? null;
+    const baseIcon = resolveBaseIcon(item.baseType, baseIcons);
 
     if (item.category === "gem") {
       const tiers = gemTiers.get(norm(item.name));

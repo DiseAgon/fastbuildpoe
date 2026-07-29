@@ -57,7 +57,13 @@ export function GearSlot({
         selected ? "border-accent shadow-glow" : RARITY_BORDER_CLASS[item.rarity]
       } ${className}`}
     >
-      <ItemIcon icon={quote?.icon ?? null} rarity={item.rarity} alt={displayName} size={38} />
+      <ItemIcon
+        icon={quote?.icon ?? null}
+        rarity={item.rarity}
+        category={item.category}
+        alt={displayName}
+        size={38}
+      />
       <span className="flex min-w-0 flex-1 flex-col leading-tight">
         {slotLabel && (
           <span className="text-[9px] uppercase tracking-wide text-muted/70">{slotLabel}</span>

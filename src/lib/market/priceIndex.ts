@@ -128,16 +128,51 @@ export function nearestGemTier(
 
 /**
  * baseType → icon, for rares and magic/normal items that have no unique entry.
- * The BaseType overview prices influenced bases; we only keep the artwork, and
- * one icon per base is enough since influence does not change the art.
+ * We only keep the artwork, and one icon per base is enough since influence
+ * does not change the art.
+ *
+ * Fed from several overviews: BaseType covers gear and jewels but carries no
+ * cluster jewels, which have their own category.
  */
-export function indexBaseIcons(lines: NinjaStashLine[]): Map<string, string> {
+export function indexBaseIcons(lineSets: NinjaStashLine[][]): Map<string, string> {
   const map = new Map<string, string>();
-  for (const line of lines) {
-    const name = line.baseType ?? line.name;
-    if (!name || !line.icon) continue;
-    const key = norm(name);
-    if (!map.has(key)) map.set(key, line.icon);
+  for (const lines of lineSets) {
+    for (const line of lines) {
+      const name = line.baseType ?? line.name;
+      if (!name || !line.icon) continue;
+      const key = norm(name);
+      if (!map.has(key)) map.set(key, line.icon);
+    }
   }
   return map;
+}
+
+/** Below this many characters a suffix match is too weak to trust. */
+const MIN_BASE_MATCH = 6;
+
+/**
+ * Find the artwork for an item's base type.
+ *
+ * PoB writes magic items as a single affixed line ("Alchemist's Quartz Flask of
+ * Craft"), so the parsed base keeps its prefix and never matches a feed key
+ * exactly. Fall back to the longest known base the string *ends with* —
+ * prefixes come first, so "alchemistsquartzflask" ends with "quartzflask".
+ * Longest wins so "Prismatic Tincture" beats a shorter accidental tail.
+ */
+export function resolveBaseIcon(
+  baseType: string,
+  icons: Map<string, string>,
+): string | null {
+  if (!baseType) return null;
+  const key = norm(baseType);
+  const exact = icons.get(key);
+  if (exact) return exact;
+
+  let best: { len: number; icon: string } | null = null;
+  for (const [candidate, icon] of icons) {
+    if (candidate.length < MIN_BASE_MATCH || candidate.length >= key.length) continue;
+    if (!key.endsWith(candidate)) continue;
+    if (!best || candidate.length > best.len) best = { len: candidate.length, icon };
+  }
+  return best?.icon ?? null;
 }
