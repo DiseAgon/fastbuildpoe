@@ -1,17 +1,49 @@
 "use client";
 
 import type { ParsedItem } from "@/types/item";
-import {
-  MOD_TYPE_CLASS,
-  MOD_TYPE_LABEL,
-  RARITY_BORDER_CLASS,
-  RARITY_TEXT_CLASS,
-} from "@/lib/rarity";
+import { RARITY_BORDER_CLASS, RARITY_TEXT_CLASS } from "@/lib/rarity";
+import { useTradeSelection } from "@/hooks/useTradeSelection";
 import { useBuild } from "./BuildContext";
 import { ItemIcon } from "./ItemIcon";
+import { ModList } from "./ModList";
 import { PriceField } from "./PriceField";
 import { TradeLinkButton } from "./TradeLinkButton";
 import { GemTradeControls } from "./GemTradeControls";
+
+/**
+ * Mods + trade controls for equipment, split out so `useTradeSelection` only
+ * runs for items that have a mod-based trade search. Gems take a different path
+ * (level/quality), and a hook can't be called conditionally.
+ */
+function GearTradeSection({
+  item,
+  priceKey,
+  priceFieldId,
+}: {
+  item: ParsedItem;
+  priceKey: string;
+  priceFieldId: string;
+}) {
+  const { game, league } = useBuild();
+  const trade = useTradeSelection(game, league, item);
+
+  return (
+    <>
+      <ModList item={item} trade={trade} />
+
+      {item.unparsed.length > 0 && (
+        <p className="px-4 py-2 text-xs text-amber-400/80">
+          {item.unparsed.length} line(s) not parsed
+        </p>
+      )}
+
+      <div className="mt-auto border-t border-border/60">
+        <PriceField itemKey={priceKey} fieldId={priceFieldId} />
+        <TradeLinkButton item={item} trade={trade} />
+      </div>
+    </>
+  );
+}
 
 export function ItemCard({ item, number }: { item: ParsedItem; number: number }) {
   const { keyFor, getQuote } = useBuild();
@@ -70,33 +102,21 @@ export function ItemCard({ item, number }: { item: ParsedItem; number: number })
         {item.corrupted && <span className="text-red-400">Corrupted</span>}
       </div>
 
-      {!isGem && (
-        <ul className="flex-1 space-y-1 px-4 py-3 text-sm">
-          {item.mods.length === 0 && <li className="text-muted">No mods parsed.</li>}
-          {item.mods.map((mod, i) => (
-            <li key={i} className="flex gap-2">
-              <span
-                className={`mt-0.5 shrink-0 text-[10px] uppercase tracking-wide ${MOD_TYPE_CLASS[mod.type]}`}
-                title={MOD_TYPE_LABEL[mod.type]}
-              >
-                {MOD_TYPE_LABEL[mod.type].slice(0, 3)}
-              </span>
-              <span className="text-text/90">{mod.text}</span>
-            </li>
-          ))}
-        </ul>
+      {isGem ? (
+        <>
+          {item.unparsed.length > 0 && (
+            <p className="px-4 py-2 text-xs text-amber-400/80">
+              {item.unparsed.length} line(s) not parsed
+            </p>
+          )}
+          <div className="mt-auto border-t border-border/60">
+            <PriceField itemKey={priceKey} fieldId={priceFieldId} />
+            <GemTradeControls item={item} />
+          </div>
+        </>
+      ) : (
+        <GearTradeSection item={item} priceKey={priceKey} priceFieldId={priceFieldId} />
       )}
-
-      {item.unparsed.length > 0 && (
-        <p className="px-4 py-2 text-xs text-amber-400/80">
-          {item.unparsed.length} line(s) not parsed
-        </p>
-      )}
-
-      <div className="mt-auto border-t border-border/60">
-        <PriceField itemKey={priceKey} fieldId={priceFieldId} />
-        {isGem ? <GemTradeControls item={item} /> : <TradeLinkButton item={item} />}
-      </div>
     </article>
   );
 }

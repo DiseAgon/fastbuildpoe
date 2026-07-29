@@ -1,16 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { ParsedItem } from "@/types/item";
-import type {
-  EditableFilter,
-  EquipmentFilter,
-  FilterGroup,
-  PseudoFilter,
-} from "@/lib/trade/queryBuilder";
-import { useBuild } from "./BuildContext";
-
-type BudgetMode = "minmax" | "asis" | "budget";
+import type { FilterGroup } from "@/lib/trade/queryBuilder";
+import type { BudgetMode, TradeSelectionState } from "@/hooks/useTradeSelection";
 
 const MODES: { id: BudgetMode; label: string; hint: string }[] = [
   { id: "minmax", label: "Min-max", hint: "All mods required, best rolls" },
@@ -25,93 +18,23 @@ const GROUPS: { id: FilterGroup; label: string; hint: string }[] = [
   { id: "off", label: "Off", hint: "Ignore this mod" },
 ];
 
-interface Selection {
-  filters: EditableFilter[];
-  countMin: number;
-  equipment: EquipmentFilter[];
-  pseudo: PseudoFilter[];
-  buyout: boolean;
-  useBase: boolean;
-}
-
-interface LinkData extends Selection {
-  url: string;
-  league: string;
-  matched: number;
-  unmatched: number;
-  strategy: string;
-}
-
-export function TradeLinkButton({ item }: { item: ParsedItem }) {
-  const { game, league } = useBuild();
-  const [mode, setMode] = useState<BudgetMode>("asis");
-  const [sel, setSel] = useState<Selection>({
-    filters: [],
-    countMin: 1,
-    equipment: [],
-    pseudo: [],
-    buyout: true,
-    useBase: true,
-  });
-  const [data, setData] = useState<LinkData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+/**
+ * Trade-search controls for one item.
+ *
+ * Which mods to search is chosen on the mod list itself (see ModList); this is
+ * the rest: strictness preset, buy-out/base toggles, and an advanced panel for
+ * roll ranges, Must/Any/Excl grouping and pseudo totals. Selection state is
+ * owned by useTradeSelection so both surfaces stay in sync.
+ */
+export function TradeLinkButton({
+  item,
+  trade,
+}: {
+  item: ParsedItem;
+  trade: TradeSelectionState;
+}) {
+  const { mode, setMode, sel, update, data, loading, error } = trade;
   const [showPanel, setShowPanel] = useState(false);
-  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  async function fetchLink(payload: Partial<Selection>): Promise<LinkData | null> {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/trade/link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ game, mode, league: league ?? undefined, item, ...payload }),
-      });
-      const json = await res.json();
-      if (json.success && json.data) return json.data as LinkData;
-      setError(json.error ?? "Failed to build link.");
-      return null;
-    } catch {
-      setError("Could not reach the server.");
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Re-seed defaults whenever game/league/mode/item changes (keeps buyout/useBase).
-  useEffect(() => {
-    let cancelled = false;
-    fetchLink({ buyout: sel.buyout, useBase: sel.useBase }).then((d) => {
-      if (cancelled || !d) return;
-      setSel({
-        filters: d.filters,
-        countMin: d.countMin,
-        equipment: d.equipment,
-        pseudo: d.pseudo,
-        buyout: d.buyout,
-        useBase: d.useBase,
-      });
-      setData(d);
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game, league, mode, item]);
-
-  /** Apply a partial change to the selection and rebuild the link (debounced). */
-  function update(patch: Partial<Selection>) {
-    const next = { ...sel, ...patch };
-    setSel(next);
-    if (debounce.current) clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => {
-      fetchLink(next).then((d) => {
-        if (d) setData(d);
-      });
-    }, 300);
-  }
 
   const countTotal = sel.filters.filter((f) => f.group === "count").length;
 
@@ -160,13 +83,14 @@ export function TradeLinkButton({ item }: { item: ParsedItem }) {
               type="button"
               onClick={() => setShowPanel((v) => !v)}
               aria-expanded={showPanel}
-              className={`flex items-center gap-1 rounded-[6px] border px-2.5 py-1 text-xs font-semibold transition-colors duration-[var(--duration-fast)] ${
+              title="Roll ranges, Must/Any/Exclude grouping, and pseudo totals"
+              className={`rounded-[6px] border px-2.5 py-1 text-xs transition-colors duration-[var(--duration-fast)] ${
                 showPanel
-                  ? "border-accent bg-accent/20 text-accent"
-                  : "border-accent/50 bg-accent/10 text-accent hover:bg-accent/20"
+                  ? "border-accent bg-accent/15 text-accent"
+                  : "border-border text-muted hover:border-accent/50 hover:text-accent"
               }`}
             >
-              {showPanel ? "▲ Hide mods" : "⚙ Customize mods"}
+              {showPanel ? "▲ Advanced" : "▾ Advanced"}
             </button>
           )}
         </div>

@@ -23,7 +23,7 @@ const STEPS: { title: string; body: string }[] = [
   },
   {
     title: "Tune the search",
-    body: "Use Min-max / As-is / Budget presets, or “⚙ Customize mods” to set each mod to Must / Any / Exclude, edit min–max, mark fractured, add pseudo Totals (total resistance/attributes), or weapon DPS / armour filters. Toggle Buy-out and Base as needed.",
+    body: "Untick any mod you don't want matched — the checkbox next to it drops it from the search. Pick a Min-max / As-is / Budget preset for strictness, and toggle Buy-out and Base. “Advanced” adds roll ranges, Must / Any / Exclude grouping, pseudo Totals and weapon DPS / armour filters.",
   },
   {
     title: "Note prices & share",

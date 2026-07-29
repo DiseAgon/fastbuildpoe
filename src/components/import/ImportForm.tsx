@@ -5,11 +5,14 @@ import { useState } from "react";
 export function ImportForm({
   onImport,
   loading,
+  initialValue = "",
 }: {
   onImport: (input: string) => void;
   loading: boolean;
+  /** Pre-fills the field when a build is restored from autosave or a share link. */
+  initialValue?: string;
 }) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(initialValue);
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();

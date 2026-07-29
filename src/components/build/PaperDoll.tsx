@@ -48,11 +48,26 @@ function Strip({
   selectedKey: string | null;
   onSelect: (item: ParsedItem) => void;
 }) {
-  const { keyFor } = useBuild();
+  const { keyFor, sumItems, countUnpriced } = useBuild();
   if (items.length === 0) return null;
+  const total = sumItems(items);
+  const unpriced = countUnpriced(items);
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-[10px] uppercase tracking-wide text-muted">{title}</span>
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] uppercase tracking-wide text-muted">{title}</span>
+        <span className="h-px flex-1 bg-border/60" aria-hidden />
+        {total > 0 && (
+          <span className="flex items-center gap-1 text-xs text-text">
+            {formatDivine(total)} <DivineIcon />
+          </span>
+        )}
+        {unpriced > 0 && (
+          <span className="text-[10px] text-muted" title="No live price for these">
+            {unpriced} unpriced
+          </span>
+        )}
+      </div>
       <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4">
         {items.map((item, i) => (
           <GearSlot

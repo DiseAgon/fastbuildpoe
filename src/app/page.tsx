@@ -15,6 +15,7 @@ import { GAME_IDS, GAMES, type GameId } from "@/lib/game/registry";
 import type { ItemSetView, ParsedBuild, ParsedItem } from "@/types/item";
 import type { TradeMeta } from "@/lib/trade/meta";
 import { decodeShare, type SharePayload } from "@/lib/share";
+import { clearDraft, draftHasWork, loadDraft, saveDraft } from "@/lib/draft";
 import { useBuildPrices } from "@/hooks/useBuildPrices";
 import { SavedPanel } from "@/components/SavedPanel";
 import { FeedbackButton } from "@/components/FeedbackButton";
@@ -89,6 +90,9 @@ export default function Home() {
   const [sessions, setSessions] = useState<SavedSession[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
   const [gearView, setGearView] = useState<"doll" | "list">("doll");
+  /** Blocks autosave until the initial restore has run, so an empty first
+   *  render can't overwrite a good draft. */
+  const [restored, setRestored] = useState(false);
 
   useEffect(() => {
     setSessions(loadSessions());
@@ -202,15 +206,45 @@ export default function Home() {
     [importInput],
   );
 
-  // Restore a shared session from the URL hash (#s=...) once on mount.
+  // Restore once on mount. A share link in the hash is an explicit request and
+  // wins over the autosaved draft; otherwise pick the draft back up so a
+  // refresh mid-pricing doesn't lose anything.
   useEffect(() => {
-    if (typeof window === "undefined" || !window.location.hash.startsWith("#s=")) return;
-    try {
-      restoreFromPayload(decodeShare(window.location.hash.slice(3)));
-    } catch {
-      /* ignore bad payload */
+    if (typeof window === "undefined") return;
+    if (window.location.hash.startsWith("#s=")) {
+      try {
+        restoreFromPayload(decodeShare(window.location.hash.slice(3)));
+      } catch {
+        /* ignore bad payload */
+      }
+      setRestored(true);
+      return;
     }
-  }, [restoreFromPayload]);
+    const draft = loadDraft();
+    if (draft && draftHasWork(draft)) {
+      setPrices(draft.prices);
+      setLeagues((prev) => ({ ...prev, ...draft.leagues }));
+      setInputs((prev) => ({ ...prev, ...draft.inputs }));
+      setGame(draft.game);
+      const input = draft.inputs[draft.game];
+      if (input) {
+        void importInput(input).then((b) => {
+          const setId = draft.setIds[b?.game ?? draft.game];
+          if (b && setId) setActiveSetIds((prev) => ({ ...prev, [b.game]: setId }));
+        });
+      }
+    }
+    setRestored(true);
+  }, [restoreFromPayload, importInput]);
+
+  // Autosave the working state (debounced — prices change per keystroke).
+  useEffect(() => {
+    if (!restored) return;
+    const timer = setTimeout(() => {
+      saveDraft({ game, inputs, setIds: activeSetIds, leagues, prices });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [restored, game, inputs, activeSetIds, leagues, prices]);
 
   function saveCurrent() {
     const input = inputs[game];
@@ -360,8 +394,14 @@ export default function Home() {
             aria-label="Import a build"
             className="rounded-[var(--radius)] border border-border bg-surface/60 p-5"
           >
-            {/* key={game} remounts the form so the field clears when you switch game. */}
-            <ImportForm key={game} onImport={handleImport} loading={loading} />
+            {/* key changes remount the form: on game switch, and once the
+                restored input arrives so it shows up in the field. */}
+            <ImportForm
+              key={`${game}|${inputs[game] ?? ""}`}
+              initialValue={inputs[game] ?? ""}
+              onImport={handleImport}
+              loading={loading}
+            />
             {error && (
               <p className="mt-3 text-sm text-red-400" role="alert">
                 {error}
@@ -408,6 +448,21 @@ export default function Home() {
                         Save
                       </button>
                     )}
+                    <span
+                      className="text-xs text-muted"
+                      title="Your prices are kept in this browser automatically — a refresh won't lose them. Click to discard."
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          clearDraft();
+                          setPrices({});
+                        }}
+                        className="underline decoration-dotted underline-offset-2 transition-colors hover:text-accent"
+                      >
+                        Autosaved
+                      </button>
+                    </span>
                     <span className="text-muted">
                       {total} item{total === 1 ? "" : "s"}
                       {build.skipped > 0 ? ` · ${build.skipped} skipped` : ""}
