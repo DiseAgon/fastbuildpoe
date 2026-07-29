@@ -27,6 +27,7 @@ import {
   type FlipRow,
   type NinjaStashLine,
 } from "./ninja";
+import { indexDropStateGems, indexUniques, norm } from "./priceIndex";
 
 interface CostItemDef {
   /** Currency Exchange line id (poe.ninja exchange Fragment category). */
@@ -429,75 +430,6 @@ export interface BossBoard {
   fetchedAt: number;
 }
 
-const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-
-interface UniqueAgg {
-  chaos: number;
-  icon: string | null;
-  listings: number;
-  trend7d: number | null;
-  variants: number;
-}
-
-/**
- * poe.ninja splits a unique into one price line per link tier (…-5l, …-6l).
- * A boss drops the item unlinked, so the 5L/6L lines price the linking, not the
- * drop — pricing off the max overstated Servant of Decay by 87× and Seven
- * Teachings by 58×. Price from the unlinked line and count only genuinely
- * distinct `variant` labels (Watcher's Eye mods etc.) as variants.
- */
-function indexUniques(lineSets: NinjaStashLine[][]): Map<string, UniqueAgg> {
-  const byKey = new Map<string, NinjaStashLine[]>();
-  for (const lines of lineSets) {
-    for (const line of lines) {
-      if (!line.name || !line.chaosValue || line.chaosValue <= 0) continue;
-      const key = norm(line.name);
-      byKey.set(key, [...(byKey.get(key) ?? []), line]);
-    }
-  }
-
-  const map = new Map<string, UniqueAgg>();
-  for (const [key, lines] of byKey) {
-    const dropState = [...lines].sort((a, b) => {
-      const byLinks = (a.links ?? 0) - (b.links ?? 0);
-      if (byLinks !== 0) return byLinks;
-      return (b.listingCount ?? 0) - (a.listingCount ?? 0);
-    })[0];
-    map.set(key, {
-      chaos: dropState.chaosValue ?? 0,
-      icon: dropState.icon ?? null,
-      listings: lines.reduce((sum, l) => sum + (l.listingCount ?? 0), 0),
-      trend7d: dropState.sparkLine?.totalChange ?? null,
-      variants: new Set(lines.map((l) => l.variant).filter(Boolean)).size,
-    });
-  }
-  return map;
-}
-
-/** Boss-dropped gems: price the drop state (uncorrupted, level 1, no quality). */
-function indexGems(lines: NinjaStashLine[]): Map<string, NinjaStashLine> {
-  const byName = new Map<string, NinjaStashLine[]>();
-  for (const line of lines) {
-    if (!line.name || line.corrupted) continue;
-    if (!line.chaosValue || line.chaosValue <= 0) continue;
-    const key = norm(line.name);
-    byName.set(key, [...(byName.get(key) ?? []), line]);
-  }
-  const picked = new Map<string, NinjaStashLine>();
-  for (const [key, variants] of byName) {
-    const lvl1 = variants.filter((v) => (v.gemLevel ?? 1) === 1);
-    const pool = lvl1.length > 0 ? lvl1 : variants;
-    const best = [...pool].sort((a, b) => {
-      const aPlain = a.gemQuality ? 1 : 0;
-      const bPlain = b.gemQuality ? 1 : 0;
-      if (aPlain !== bPlain) return aPlain - bPlain;
-      return (b.listingCount ?? 0) - (a.listingCount ?? 0);
-    })[0];
-    picked.set(key, best);
-  }
-  return picked;
-}
-
 export async function getBossBoard(league: string): Promise<BossBoard | null> {
   const [flip, invitations, gemLines, ...uniqueSets] = await Promise.all([
     getFlipBoard(league, "Fragment"),
@@ -517,7 +449,7 @@ export async function getBossBoard(league: string): Promise<BossBoard | null> {
     if (line.name) invByName.set(norm(line.name), line);
   }
   const uniques = indexUniques(uniqueSets);
-  const gems = indexGems(gemLines);
+  const gems = indexDropStateGems(gemLines);
 
   const hasAnyData = cxById.size > 0 || uniques.size > 0 || invByName.size > 0;
   if (!hasAnyData) return null;

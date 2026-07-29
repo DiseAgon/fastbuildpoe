@@ -18,12 +18,13 @@ export function CategorySection({
   startNumber: number;
   defaultOpen?: boolean;
 }) {
-  const { sumItems } = useBuild();
+  const { sumItems, countUnpriced } = useBuild();
   const [open, setOpen] = useState(defaultOpen);
 
   if (items.length === 0) return null;
 
   const total = sumItems(items);
+  const unpriced = countUnpriced(items);
   const sectionId = `section-${label.toLowerCase()}`;
 
   return (
@@ -51,6 +52,14 @@ export function CategorySection({
         {total > 0 && (
           <span className="flex items-center gap-1 text-sm text-text">
             {formatDivine(total)} <DivineIcon />
+          </span>
+        )}
+        {unpriced > 0 && (
+          <span
+            className="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
+            title="No live poe.ninja price — rares are priced by their rolls, use the trade link"
+          >
+            {unpriced} unpriced
           </span>
         )}
         <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">

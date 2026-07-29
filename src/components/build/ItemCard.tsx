@@ -8,13 +8,15 @@ import {
   RARITY_TEXT_CLASS,
 } from "@/lib/rarity";
 import { useBuild } from "./BuildContext";
-import { DivineIcon } from "./DivineIcon";
+import { ItemIcon } from "./ItemIcon";
+import { PriceField } from "./PriceField";
 import { TradeLinkButton } from "./TradeLinkButton";
 import { GemTradeControls } from "./GemTradeControls";
 
 export function ItemCard({ item, number }: { item: ParsedItem; number: number }) {
-  const { getPrice, setPrice, keyFor } = useBuild();
+  const { keyFor, getQuote } = useBuild();
   const priceKey = keyFor(item);
+  const quote = getQuote(priceKey);
   // Sanitize for use as a DOM id (item keys contain spaces, "|", "%", etc.).
   const priceFieldId = `price-${priceKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
   // PoB names crafted items "New Item" — the base type is the useful label.
@@ -33,6 +35,7 @@ export function ItemCard({ item, number }: { item: ParsedItem; number: number })
         >
           {number}
         </span>
+        <ItemIcon icon={quote?.icon ?? null} rarity={item.rarity} alt={displayName} />
         <div className="min-w-0 flex-1">
           <h3
             className={`truncate font-serif text-lg leading-tight ${RARITY_TEXT_CLASS[item.rarity]}`}
@@ -91,23 +94,7 @@ export function ItemCard({ item, number }: { item: ParsedItem; number: number })
       )}
 
       <div className="mt-auto border-t border-border/60">
-        <div className="flex items-center gap-2 px-4 pt-3">
-          <label htmlFor={priceFieldId} className="text-xs text-muted">
-            Price
-          </label>
-          <input
-            id={priceFieldId}
-            type="number"
-            min="0"
-            step="0.1"
-            inputMode="decimal"
-            value={getPrice(priceKey)}
-            onChange={(e) => setPrice(priceKey, e.target.value)}
-            placeholder="0"
-            className="w-24 rounded-[6px] border border-border bg-bg px-2 py-1 text-sm text-text outline-none transition-colors focus:border-accent"
-          />
-          <DivineIcon />
-        </div>
+        <PriceField itemKey={priceKey} fieldId={priceFieldId} />
         {isGem ? <GemTradeControls item={item} /> : <TradeLinkButton item={item} />}
       </div>
     </article>

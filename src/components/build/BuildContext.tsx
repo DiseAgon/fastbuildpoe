@@ -3,63 +3,128 @@
 import { createContext, useCallback, useContext, type ReactNode } from "react";
 import type { GameId } from "@/lib/game/registry";
 import type { ParsedItem } from "@/types/item";
+import { itemKey } from "@/lib/build/itemKey";
+import type { ItemQuote } from "@/lib/market/buildPrices";
 
 interface BuildContextValue {
   game: GameId;
   league: string | null;
   divineIcon: string | null;
-  getPrice: (key: string) => string;
+  /** The manual override for a key, or "" when the auto price is in effect. */
+  getOverride: (key: string) => string;
   setPrice: (key: string, value: string) => void;
+  /** Clear the manual override so the live price takes over again. */
+  clearOverride: (key: string) => void;
+  /** Live poe.ninja quote for a key, when one was found. */
+  getQuote: (key: string) => ItemQuote | undefined;
+  /** What the input should show: the override if set, else the live price. */
+  getPrice: (key: string) => string;
   keyFor: (item: ParsedItem) => string;
-  /** Sum of the manually-entered prices for the given items (blank/invalid = 0). */
+  /** Sum of effective prices (override where set, live price otherwise). */
   sumItems: (items: ParsedItem[]) => number;
+  /** Items in the list with neither an override nor a live price. */
+  countUnpriced: (items: ParsedItem[]) => number;
+  pricesLoading: boolean;
+  /** Set when live pricing is unavailable (PoE2, or poe.ninja had no data). */
+  pricesUnavailable: string | null;
 }
 
 const BuildContext = createContext<BuildContextValue | null>(null);
+
+/** Round to 2dp for display without dragging float noise into the input. */
+function formatAuto(divine: number): string {
+  if (divine >= 100) return String(Math.round(divine));
+  if (divine >= 1) return String(Math.round(divine * 10) / 10);
+  return String(Math.round(divine * 100) / 100);
+}
 
 export function BuildProvider({
   game,
   league,
   divineIcon,
   prices,
+  quotes,
+  pricesLoading,
+  pricesUnavailable,
   onPriceChange,
   children,
 }: {
   game: GameId;
   league: string | null;
   divineIcon: string | null;
-  /** Price-by-key map, owned by the page (so it can be restored from a share link). */
+  /** Manual overrides only, owned by the page (so a share link can restore them). */
   prices: Record<string, string>;
+  /** Live quotes by item key, keyed the same way as `prices`. */
+  quotes: Record<string, ItemQuote>;
+  pricesLoading: boolean;
+  pricesUnavailable: string | null;
   onPriceChange: (key: string, value: string) => void;
   children: ReactNode;
 }) {
-  const keyFor = useCallback(
-    (item: ParsedItem) =>
-      item.category === "gem"
-        ? `${game}|gem|${item.name}|${item.gemLevel ?? ""}|${item.quality ?? ""}`
-        : `${game}|${item.category}|${item.name}|${item.baseType}|${item.slot ?? ""}`,
-    [game],
+  const keyFor = useCallback((item: ParsedItem) => itemKey(game, item), [game]);
+
+  const getOverride = useCallback((key: string) => prices[key] ?? "", [prices]);
+  const getQuote = useCallback((key: string) => quotes[key], [quotes]);
+
+  /** Effective numeric price: override wins, else the live quote. */
+  const effective = useCallback(
+    (key: string): number => {
+      const override = Number.parseFloat(prices[key] || "");
+      if (Number.isFinite(override)) return override;
+      return quotes[key]?.divine ?? 0;
+    },
+    [prices, quotes],
   );
 
-  const getPrice = useCallback((key: string) => prices[key] ?? "", [prices]);
+  const getPrice = useCallback(
+    (key: string) => {
+      const override = prices[key];
+      if (override !== undefined && override !== "") return override;
+      const divine = quotes[key]?.divine;
+      return divine !== null && divine !== undefined ? formatAuto(divine) : "";
+    },
+    [prices, quotes],
+  );
 
   const setPrice = useCallback(
     (key: string, value: string) => onPriceChange(key, value),
     [onPriceChange],
   );
 
+  const clearOverride = useCallback((key: string) => onPriceChange(key, ""), [onPriceChange]);
+
   const sumItems = useCallback(
     (items: ParsedItem[]) =>
-      items.reduce((total, item) => {
-        const value = Number.parseFloat(prices[keyFor(item)] || "");
-        return total + (Number.isFinite(value) ? value : 0);
-      }, 0),
-    [prices, keyFor],
+      items.reduce((total, item) => total + effective(keyFor(item)), 0),
+    [effective, keyFor],
+  );
+
+  const countUnpriced = useCallback(
+    (items: ParsedItem[]) =>
+      items.filter((item) => {
+        const key = keyFor(item);
+        return !Number.isFinite(Number.parseFloat(prices[key] || "")) && !quotes[key]?.divine;
+      }).length,
+    [prices, quotes, keyFor],
   );
 
   return (
     <BuildContext.Provider
-      value={{ game, league, divineIcon, getPrice, setPrice, keyFor, sumItems }}
+      value={{
+        game,
+        league,
+        divineIcon,
+        getOverride,
+        setPrice,
+        clearOverride,
+        getQuote,
+        getPrice,
+        keyFor,
+        sumItems,
+        countUnpriced,
+        pricesLoading,
+        pricesUnavailable,
+      }}
     >
       {children}
     </BuildContext.Provider>

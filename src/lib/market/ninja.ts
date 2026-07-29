@@ -162,6 +162,11 @@ function divinePriceOf(currency: NinjaOverview | null): number | null {
   return line?.primaryValue && line.primaryValue > 0 ? line.primaryValue : null;
 }
 
+/** Chaos per divine for a league, or null when the Currency feed is unavailable. */
+export async function getDivinePrice(league: string): Promise<number | null> {
+  return divinePriceOf(await getJson<NinjaOverview>(overviewUrl(league, "Currency")));
+}
+
 /* ------------------------------------------------------------------------- *
  * Breakout radar — unique items whose price is accelerating (viral-build
  * detection). Uniques trade on the trade site, not Faustus, so this uses the

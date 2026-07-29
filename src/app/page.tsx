@@ -14,6 +14,7 @@ import { GAME_IDS, GAMES, type GameId } from "@/lib/game/registry";
 import type { ItemSetView, ParsedBuild, ParsedItem } from "@/types/item";
 import type { TradeMeta } from "@/lib/trade/meta";
 import { decodeShare, type SharePayload } from "@/lib/share";
+import { useBuildPrices } from "@/hooks/useBuildPrices";
 import { SavedPanel } from "@/components/SavedPanel";
 import { FeedbackButton } from "@/components/FeedbackButton";
 import {
@@ -43,14 +44,32 @@ function allItemsOf(view: ItemSetView): ParsedItem[] {
   ];
 }
 
-/** Grand total of all manually-entered prices in the current view. */
+/** Grand total for the current view: live prices, with manual overrides winning. */
 function GrandTotal({ items }: { items: ParsedItem[] }) {
-  const { sumItems } = useBuild();
+  const { sumItems, countUnpriced, pricesLoading, pricesUnavailable } = useBuild();
   const total = sumItems(items);
-  if (total <= 0) return null;
+  const unpriced = countUnpriced(items);
+
+  if (pricesUnavailable) {
+    return (
+      <span className="text-xs text-muted" title={pricesUnavailable}>
+        live prices unavailable
+      </span>
+    );
+  }
+  if (total <= 0) {
+    return pricesLoading ? <span className="text-xs text-muted">pricing…</span> : null;
+  }
   return (
-    <span className="flex items-center gap-1.5 rounded-[var(--radius)] border border-accent/40 bg-accent/10 px-3 py-1 text-accent">
-      Total {formatDivine(total)} <DivineIcon />
+    <span className="flex items-center gap-2">
+      <span className="flex items-center gap-1.5 rounded-[var(--radius)] border border-accent/40 bg-accent/10 px-3 py-1 text-accent">
+        Total {formatDivine(total)} <DivineIcon />
+      </span>
+      {unpriced > 0 && (
+        <span className="text-xs text-muted" title="Items with no live price — mostly rares">
+          +{unpriced} unpriced
+        </span>
+      )}
     </span>
   );
 }
@@ -106,6 +125,13 @@ export default function Home() {
     if (!build) return null;
     return build.itemSets.find((s) => s.id === activeSetId) ?? build.itemSets[0] ?? null;
   }, [build, activeSetId]);
+
+  const viewItems = useMemo(() => (view ? allItemsOf(view) : []), [view]);
+  const { quotes, loading: pricesLoading, unavailable: pricesUnavailable } = useBuildPrices(
+    game,
+    league,
+    viewItems,
+  );
 
   const offsets = useMemo(() => {
     if (!view) return { gear: 1, jewels: 1, gems: 1, flasks: 1, charms: 1, totalGems: 0 };
@@ -321,6 +347,9 @@ export default function Home() {
         league={league || null}
         divineIcon={gameMeta?.divineIcon ?? null}
         prices={prices}
+        quotes={quotes}
+        pricesLoading={pricesLoading}
+        pricesUnavailable={pricesUnavailable}
         onPriceChange={setPrice}
       >
         <main className="flex flex-1 flex-col gap-8 pb-16">
@@ -453,7 +482,8 @@ export default function Home() {
           <FeedbackButton />
         </div>
         <p className="mt-2">
-          Fan-made tool — not affiliated with Grinding Gear Games. Prices are user-entered.
+          Fan-made tool — not affiliated with Grinding Gear Games. Unique and gem prices come from
+          poe.ninja; rares are priced by their rolls, so enter those yourself.
         </p>
       </footer>
 
