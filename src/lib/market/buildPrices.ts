@@ -148,7 +148,10 @@ export async function priceBuildItems(
     const baseIcon = resolveBaseIcon(item.baseType, baseIcons);
 
     if (item.category === "gem") {
-      const tiers = gemTiers.get(norm(item.name));
+      // PoB drops the " Support" suffix ("Enlighten", "Slower Projectiles"),
+      // while poe.ninja keeps it — half a build's gems miss without this retry.
+      const tiers =
+        gemTiers.get(norm(item.name)) ?? gemTiers.get(norm(`${item.name} Support`));
       const hit = tiers
         ? nearestGemTier(tiers, {
             level: item.gemLevel,

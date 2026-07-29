@@ -123,7 +123,14 @@ export function nearestGemTier(
     if (byCost !== 0) return byCost;
     return (b.listingCount ?? 0) - (a.listingCount ?? 0);
   })[0];
-  return { line: best, exact: cost(best) === 0 };
+
+  // Exactness is level + quality only. Corruption stays a preference in `cost`
+  // but must not make a quote "approximate": PoB doesn't record that a gem is
+  // corrupted, and above level 20 every listing is, so counting it would flag
+  // every level-21 gem in a build as a guess when the price is exactly right.
+  const exact =
+    (best.gemLevel ?? 1) === wantLevel && (best.gemQuality ?? 0) === wantQuality;
+  return { line: best, exact };
 }
 
 /**

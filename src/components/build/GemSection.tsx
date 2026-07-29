@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import type { GemGroup } from "@/types/item";
+import { Fragment, useState } from "react";
+import type { GemGroup, ParsedItem } from "@/types/item";
 import { ItemCard } from "./ItemCard";
+import { GearSlot } from "./GearSlot";
 import { useBuild, formatDivine } from "./BuildContext";
 import { DivineIcon } from "./DivineIcon";
 
@@ -18,44 +19,94 @@ function Chevron({ open }: { open: boolean }) {
   );
 }
 
-/** One linked socket group — collapses independently so you can check one at a time. */
+/** Level / quality is the useful eyebrow for a gem, the way a slot name is for gear. */
+function gemLabel(gem: ParsedItem): string {
+  const parts = [`Lv ${gem.gemLevel ?? "?"}`];
+  if (gem.quality) parts.push(`Q${gem.quality}%`);
+  if (gem.corrupted) parts.push("corr");
+  return parts.join(" · ");
+}
+
+/**
+ * Each item's share of the group's cost, matching the equipment panel: scaled
+ * against the priciest gem so one expensive support doesn't flatten the rest.
+ */
+function shareMap(
+  gems: ParsedItem[],
+  priceOf: (gem: ParsedItem) => number,
+): Map<ParsedItem, number> {
+  const prices = gems.map(priceOf);
+  const peak = Math.max(0, ...prices);
+  const out = new Map<ParsedItem, number>();
+  if (peak <= 0) return out;
+  gems.forEach((gem, i) => out.set(gem, prices[i] / peak));
+  return out;
+}
+
+/**
+ * One linked socket group, drawn the way the game shows it: sockets in a tray,
+ * joined by link bars. Clicking a socket opens that gem's full card underneath —
+ * kept inside the group rather than in a shared side panel, so the section works
+ * the same in both the paper-doll and list views.
+ */
 function GemGroupBlock({ group, startNumber }: { group: GemGroup; startNumber: number }) {
-  const { sumItems } = useBuild();
-  const [open, setOpen] = useState(false);
+  const { sumItems, countUnpriced, keyFor, getPrice } = useBuild();
+  const [selected, setSelected] = useState<ParsedItem | null>(null);
   const total = sumItems(group.gems);
+  const unpriced = countUnpriced(group.gems);
+  const shares = shareMap(group.gems, (g) => Number.parseFloat(getPrice(keyFor(g)) || "") || 0);
+  const selectedKey = selected ? keyFor(selected) : null;
 
   return (
-    <div className="rounded-[var(--radius)] border border-border/60 bg-surface/40">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="group flex w-full items-center gap-2 px-3 py-2 text-left"
-      >
-        <Chevron open={open} />
-        <span className="font-serif text-rarity-gem">{group.label}</span>
+    <div className="gem-group p-2.5">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5 pb-2">
+        <span className="font-serif text-sm text-rarity-gem">{group.label}</span>
         {group.slot && (
-          <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">{group.slot}</span>
+          <span className="rounded-full border border-border bg-surface/70 px-2 py-0.5 text-[10px] text-muted">
+            {group.slot}
+          </span>
         )}
-        <span className="ml-auto flex items-center gap-2 text-xs text-muted">
-          {total > 0 && (
-            <span className="flex items-center gap-1 text-text">
-              {formatDivine(total)} <DivineIcon />
-            </span>
-          )}
+        <span className="h-px min-w-4 flex-1 bg-border/60" aria-hidden />
+        {total > 0 && (
+          <span className="flex items-center gap-1 text-xs text-text">
+            {formatDivine(total)} <DivineIcon />
+          </span>
+        )}
+        {unpriced > 0 && (
+          <span className="text-[10px] text-muted" title="No live price for these">
+            {unpriced} unpriced
+          </span>
+        )}
+        <span className="text-[10px] text-muted">
           {group.gems.length} gem{group.gems.length === 1 ? "" : "s"}
         </span>
-      </button>
+      </div>
 
-      {!open ? (
-        <p className="truncate px-3 pb-2 pl-8 text-xs text-muted" title={group.gems.map((g) => g.name).join(", ")}>
-          {group.gems.map((g) => g.name).join(", ")}
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 gap-3 p-3 pt-0 md:grid-cols-2">
-          {group.gems.map((gem, i) => (
-            <ItemCard key={i} item={gem} number={startNumber + i} />
-          ))}
+      <div className="gem-sockets">
+        {group.gems.map((gem, i) => {
+          const socket = (
+            <GearSlot
+              item={gem}
+              slotLabel={gemLabel(gem)}
+              selected={selectedKey === keyFor(gem)}
+              onSelect={() => setSelected((prev) => (prev === gem ? null : gem))}
+              share={shares.get(gem) ?? 0}
+            />
+          );
+          return i === 0 ? (
+            <Fragment key={i}>{socket}</Fragment>
+          ) : (
+            <span key={i} className="gem-pair">
+              <span className="gem-link" aria-hidden />
+              {socket}
+            </span>
+          );
+        })}
+      </div>
+
+      {selected && (
+        <div className="pt-2.5">
+          <ItemCard item={selected} number={startNumber + group.gems.indexOf(selected)} />
         </div>
       )}
     </div>
@@ -71,13 +122,15 @@ export function GemSection({
   startNumber: number;
   defaultOpen?: boolean;
 }) {
-  const { sumItems } = useBuild();
+  const { sumItems, countUnpriced } = useBuild();
   const [open, setOpen] = useState(defaultOpen);
 
   const totalGems = groups.reduce((sum, g) => sum + g.gems.length, 0);
   if (totalGems === 0) return null;
 
-  const total = sumItems(groups.flatMap((g) => g.gems));
+  const allGems = groups.flatMap((g) => g.gems);
+  const total = sumItems(allGems);
+  const unpriced = countUnpriced(allGems);
 
   // Running start number across groups (kept stable whether a group is open or not).
   let counter = startNumber;
@@ -96,6 +149,14 @@ export function GemSection({
         {total > 0 && (
           <span className="flex items-center gap-1 text-sm text-text">
             {formatDivine(total)} <DivineIcon />
+          </span>
+        )}
+        {unpriced > 0 && (
+          <span
+            className="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
+            title="No live price for these gems"
+          >
+            {unpriced} unpriced
           </span>
         )}
         <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
