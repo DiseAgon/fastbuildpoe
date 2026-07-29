@@ -176,12 +176,27 @@ async function autoFilters(
   const cfg = MODE_CONFIG[mode];
   const index = await getStatIndex(game);
   const families = resolveFamilies(index);
+  /**
+   * A cluster jewel's passive-skill lines are its *enchantment* on the trade
+   * side, and PoB reports them inside the implicit block as {crafted}. Several
+   * of them also exist as explicit stats with the same id suffix, and those
+   * match nothing: verified against the live API, explicit.stat_3086156145
+   * ("Adds # Passive Skills") returns 0 listings where enchant.stat_3086156145
+   * returns the whole market. Its real explicit mods (notables, "also grant",
+   * "increased Effect") are typed explicit/fractured by PoB and are unaffected.
+   */
+  const preferTypes =
+    /\bcluster jewel\b/i.test(item.baseType) ? ["enchant"] : undefined;
 
   const filters: EditableFilter[] = [];
   let unmatched = 0;
   let prevTemplate: string | null = null;
   for (const mod of item.mods) {
-    const hit = matchMod(index, mod);
+    const hit = matchMod(
+      index,
+      mod,
+      mod.type === "crafted" || mod.type === "implicit" ? preferTypes : undefined,
+    );
     if (!hit) {
       // Multi-line stats split into two PoB lines (e.g. "…your tree" +
       // "Passage"): if the joined text matches a stat, the previous filter

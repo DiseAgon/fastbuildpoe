@@ -114,20 +114,30 @@ export async function getStatIndex(game: GameId): Promise<StatIndex> {
   return index;
 }
 
-/** Find the best stat entry for a parsed mod, or null if unmatched. */
-export function matchMod(index: StatIndex, mod: ParsedMod): StatMatch | null {
+/**
+ * Find the best stat entry for a parsed mod, or null if unmatched.
+ *
+ * `preferTypes` is tried ahead of the mod type's own family. Some stats exist
+ * under several types with the same id suffix and only one of them actually
+ * returns results for a given item class — see the cluster-jewel case in
+ * queryBuilder, where the explicit variant of "Adds # Passive Skills" matches
+ * nothing and the enchant variant matches everything.
+ */
+export function matchMod(
+  index: StatIndex,
+  mod: ParsedMod,
+  preferTypes?: string[],
+): StatMatch | null {
   const key = normalizeStatText(mod.template);
   const candidates =
     index.byText.get(key) ?? index.bySingular.get(singularKey(key));
   if (!candidates || candidates.length === 0) return null;
 
-  const family = TYPE_FAMILY[mod.type];
+  const family = [...(preferTypes ?? []), ...(TYPE_FAMILY[mod.type] ?? [])];
   let hit: IndexedStat | undefined;
-  if (family) {
-    for (const type of family) {
-      hit = candidates.find((c) => c.entry.type === type);
-      if (hit) break;
-    }
+  for (const type of family) {
+    hit = candidates.find((c) => c.entry.type === type);
+    if (hit) break;
   }
   if (!hit) hit = candidates.find((c) => c.entry.type === "explicit") ?? candidates[0];
 
