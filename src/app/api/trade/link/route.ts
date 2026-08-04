@@ -22,7 +22,10 @@ const ModSchema = z.object({
     "crucible",
     "unknown",
   ]),
+  affix: z.enum(["prefix", "suffix"]).optional(),
 });
+
+const BandSchema = z.enum(["implicit", "prefix", "suffix", "other"]);
 
 const ItemSchema = z.object({
   rarity: z.enum(["normal", "magic", "rare", "unique", "gem", "currency"]),
@@ -54,6 +57,7 @@ const FilterSchema = z.object({
   fractured: z.boolean().optional().default(false),
   fracturedStatId: z.string().nullable().optional().default(null),
   option: z.number().nullable().optional().default(null),
+  band: BandSchema.optional().default("other"),
 });
 
 const EquipmentSchema = z.object({
@@ -80,7 +84,7 @@ const RequestBody = z.object({
   mode: z.enum(["minmax", "asis", "budget"]),
   league: z.string().optional(),
   item: ItemSchema,
-  countMin: z.number().optional(),
+  bandMins: z.record(BandSchema, z.number()).optional(),
   filters: z.array(FilterSchema).optional(),
   equipment: z.array(EquipmentSchema).optional(),
   pseudo: z.array(PseudoSchema).optional(),
@@ -121,7 +125,7 @@ export async function POST(request: Request) {
   try {
     const overrides = {
       filters: parsed.data.filters,
-      countMin: parsed.data.countMin,
+      bandMins: parsed.data.bandMins,
       equipment: parsed.data.equipment,
       pseudo: parsed.data.pseudo,
       buyout: parsed.data.buyout,
@@ -143,7 +147,7 @@ export async function POST(request: Request) {
         league,
         matched: built.matched,
         unmatched: built.unmatched,
-        countMin: built.countMin,
+        bands: built.bands,
         filters: built.filters,
         equipment: built.equipment,
         pseudo: built.pseudo,

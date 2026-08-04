@@ -1,4 +1,4 @@
-import type { ModType, ParsedItem, ParsedMod, Rarity } from "@/types/item";
+import type { ModAffix, ModType, ParsedItem, ParsedMod, Rarity } from "@/types/item";
 import { categorize } from "./categorize";
 
 /**
@@ -157,13 +157,26 @@ function extractAnnotations(line: string): string[] {
   return out;
 }
 
+/** PoB tags the affix slot when it knows the item's mod roll ("{prefix}+77 to Armour"). */
+function detectAffix(annotations: string[]): ModAffix | undefined {
+  if (annotations.includes("prefix")) return "prefix";
+  if (annotations.includes("suffix")) return "suffix";
+  return undefined;
+}
+
 function toMod(line: string, isImplicit: boolean): ParsedMod {
   const annotations = extractAnnotations(line);
   const stripped = line.replace(ANNOTATION, "").trim();
   const text = resolveRangeSpans(stripped, rangePosOf(annotations));
   const values = (text.match(NUMBER) ?? []).map(Number);
   const template = text.replace(NUMBER, "#");
-  return { text, template, values, type: detectModType(annotations, isImplicit) };
+  return {
+    text,
+    template,
+    values,
+    type: detectModType(annotations, isImplicit),
+    affix: detectAffix(annotations),
+  };
 }
 
 function normalizeRarity(value: string): Rarity {

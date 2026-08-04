@@ -4,17 +4,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { GameId } from "@/lib/game/registry";
 import type { ParsedItem } from "@/types/item";
 import type {
+  BandInfo,
   EditableFilter,
   EquipmentFilter,
   FilterGroup,
   PseudoFilter,
+  StatBand,
 } from "@/lib/trade/queryBuilder";
 
 export type BudgetMode = "minmax" | "asis" | "budget";
 
 export interface TradeSelection {
   filters: EditableFilter[];
-  countMin: number;
+  /** Per-band "match any N" overrides; absent bands use the mode's default. */
+  bandMins: Partial<Record<StatBand, number>>;
   equipment: EquipmentFilter[];
   pseudo: PseudoFilter[];
   buyout: boolean;
@@ -27,15 +30,16 @@ export interface TradeSelection {
  * caller falls back to what it asked for. Trusting them blindly put `undefined`
  * into a checkbox's `checked` and flipped it from controlled to uncontrolled.
  */
-export interface TradeLinkData extends Omit<TradeSelection, "buyout" | "useBase" | "countMin"> {
+export interface TradeLinkData extends Omit<TradeSelection, "buyout" | "useBase" | "bandMins"> {
   url: string;
   league: string;
   matched: number;
   unmatched: number;
   strategy: string;
+  /** Pools present on this item with their resolved thresholds. */
+  bands: BandInfo[];
   buyout?: boolean;
   useBase?: boolean;
-  countMin?: number;
 }
 
 export interface TradeSelectionState {
@@ -54,7 +58,7 @@ export interface TradeSelectionState {
 
 const EMPTY: TradeSelection = {
   filters: [],
-  countMin: 1,
+  bandMins: {},
   equipment: [],
   pseudo: [],
   buyout: true,
@@ -136,7 +140,9 @@ export function useTradeSelection(
       lastGroup.current = new Map();
       setSel({
         filters: d.filters,
-        countMin: d.countMin ?? 1,
+        // Re-seeded from the server's defaults, so switching mode or item drops
+        // thresholds tuned for the previous one rather than carrying them over.
+        bandMins: {},
         equipment: d.equipment,
         pseudo: d.pseudo,
         // Fall back to what we asked for; the response may omit these.

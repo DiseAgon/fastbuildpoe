@@ -14,6 +14,13 @@ export type ModType =
   | "crucible"
   | "unknown";
 
+/**
+ * Which affix slot an explicit mod occupies. Only known when PoB has the item's
+ * affix data (items copied out of the game with advanced mod info) — plenty of
+ * mods legitimately have no answer here.
+ */
+export type ModAffix = "prefix" | "suffix";
+
 export interface ParsedMod {
   /** Cleaned mod text with original numeric rolls intact. */
   text: string;
@@ -22,6 +29,8 @@ export interface ParsedMod {
   /** Numeric rolls extracted from the mod, in order. */
   values: number[];
   type: ModType;
+  /** Affix slot, when PoB recorded one. */
+  affix?: ModAffix;
 }
 
 export interface ParsedItem {

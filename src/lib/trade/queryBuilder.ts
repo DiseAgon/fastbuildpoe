@@ -20,6 +20,40 @@ export type BudgetMode = "minmax" | "asis" | "budget";
 /** Per-mod group assignment, mapping to the trade API stat group types. */
 export type FilterGroup = "and" | "count" | "not" | "off";
 
+/**
+ * Which pool an optional mod counts toward.
+ *
+ * A single "any N of all mods" group lets every match come from one class —
+ * an item with the right implicit and nothing else satisfies "any 3 of 8". The
+ * trade API takes any number of stat groups, so optional mods are split by
+ * where the mod comes from and each pool carries its own threshold. That turns
+ * one loose quota into a guarantee per class.
+ *
+ * `other` is explicit mods whose affix slot PoB did not record — most items,
+ * since the annotations only exist when the item was copied with advanced mod
+ * info. It stays one pool rather than being guessed at.
+ */
+export type StatBand = "implicit" | "prefix" | "suffix" | "other";
+
+export const BAND_ORDER: StatBand[] = ["implicit", "prefix", "suffix", "other"];
+
+export const BAND_LABEL: Record<StatBand, string> = {
+  implicit: "Implicit",
+  prefix: "Prefix",
+  suffix: "Suffix",
+  // Not "Explicit": single-mod bands fold in here, so this pool can hold an
+  // implicit and calling it explicit would be a lie on screen.
+  other: "Mods",
+};
+
+/** One optional-mod pool, surfaced so the UI can show and tune its threshold. */
+export interface BandInfo {
+  key: StatBand;
+  label: string;
+  total: number;
+  min: number;
+}
+
 interface ModeConfig {
   factor: number;
   /** Default group for matched mods. */
@@ -50,6 +84,8 @@ export interface EditableFilter {
   fracturedStatId: string | null;
   /** Trade option id for option-valued stats (min/max don't apply). */
   option?: number | null;
+  /** Which optional-mod pool this counts toward when `group` is "count". */
+  band: StatBand;
 }
 
 /** A computed equipment filter — armour defences or weapon DPS. */
@@ -76,7 +112,8 @@ export interface PseudoFilter {
 }
 
 export interface QueryOverrides {
-  countMin?: number;
+  /** Per-band thresholds, keyed by band. Absent bands keep their default. */
+  bandMins?: Partial<Record<StatBand, number>>;
   filters?: EditableFilter[];
   equipment?: EquipmentFilter[];
   pseudo?: PseudoFilter[];
@@ -145,7 +182,8 @@ export interface BuiltQuery {
   query: TradeQuery;
   matched: number;
   unmatched: number;
-  countMin: number;
+  /** Optional-mod pools actually present on this item, in display order. */
+  bands: BandInfo[];
   filters: EditableFilter[];
   equipment: EquipmentFilter[];
   pseudo: PseudoFilter[];
@@ -173,6 +211,20 @@ function consumableBase(name: string): string {
   const charm = name.match(/(\S+)\s+Charm/i);
   if (charm) return `${charm[1]} Charm`;
   return name;
+}
+
+/**
+ * The pool a mod counts toward. Implicit-class mods are item-intrinsic (you
+ * cannot craft them onto a base), so they are separated from affixes even when
+ * PoB tells us nothing about affix slots — which is the common case.
+ */
+function bandOf(mod: { type: string; affix?: "prefix" | "suffix" }): StatBand {
+  if (mod.type === "implicit" || mod.type === "enchant" || mod.type === "scourge") {
+    return "implicit";
+  }
+  if (mod.affix === "prefix") return "prefix";
+  if (mod.affix === "suffix") return "suffix";
+  return "other";
 }
 
 async function autoFilters(
@@ -241,6 +293,7 @@ async function autoFilters(
       fractured: false,
       fracturedStatId: fracturedEntry?.id ?? null,
       option: hit.option ?? null,
+      band: bandOf(mod),
     });
   }
   return { filters, unmatched };
@@ -362,8 +415,43 @@ export async function buildItemQuery(
   const countF = filters.filter((f) => f.group === "count" && !inFracCount(f) && !inFamily.has(f));
   const notF = filters.filter((f) => f.group === "not" && !inFracCount(f));
 
-  const defaultCount = Math.max(1, Math.ceil(countF.length * cfg.fraction));
-  const countMin = Math.min(overrides?.countMin ?? defaultCount, countF.length || 1);
+  /**
+   * Optional mods, split into one pool per band.
+   *
+   * Two rules keep the split from quietly turning every search into an exact
+   * match, both learned the hard way against the live API:
+   *
+   * A pool of one is not a quota, it is a requirement — and the lone mod is
+   * usually an implicit, which on a real item is the *rarest* thing on it.
+   * Ancient Skull's "+2 to Level of Socketed Gems" is a corrupted implicit
+   * carried by 5 of the 4814 listed; giving it its own pool cut the search from
+   * 4797 hits to 5. Single-mod bands therefore fold back into one shared pool
+   * instead of each becoming mandatory.
+   *
+   * The threshold rounds rather than ceils, because ceiling a small pool
+   * demands all of it — a 2-mod pool at the 0.6 "as-is" fraction would need
+   * both — and splitting exists precisely to create small pools.
+   */
+  const byBand = new Map<StatBand, EditableFilter[]>();
+  for (const f of countF) {
+    const list = byBand.get(f.band) ?? [];
+    list.push(f);
+    byBand.set(f.band, list);
+  }
+  const countByBand = new Map<StatBand, EditableFilter[]>();
+  for (const [key, list] of byBand) {
+    const target = list.length >= 2 ? key : "other";
+    countByBand.set(target, [...(countByBand.get(target) ?? []), ...list]);
+  }
+
+  const bands: BandInfo[] = [];
+  for (const key of BAND_ORDER) {
+    const list = countByBand.get(key);
+    if (!list || list.length === 0) continue;
+    const fallback = Math.max(1, Math.round(list.length * cfg.fraction));
+    const min = Math.min(Math.max(1, overrides?.bandMins?.[key] ?? fallback), list.length);
+    bands.push({ key, label: BAND_LABEL[key], total: list.length, min });
+  }
 
   const stats: TradeStatGroup[] = [];
   const strategyParts: string[] = [];
@@ -372,13 +460,19 @@ export async function buildItemQuery(
     stats.push({ type: "and", filters: andF.map(toStatFilter) });
     strategyParts.push(`${andF.length} required`);
   }
-  if (countF.length >= 2) {
-    stats.push({ type: "count", value: { min: countMin }, filters: countF.map(toStatFilter) });
-    strategyParts.push(`any ${countMin} of ${countF.length}`);
-  } else if (countF.length === 1) {
-    // A lone "optional" mod is just required.
-    stats.push({ type: "and", filters: countF.map(toStatFilter) });
-    strategyParts.push(`1 required`);
+  for (const band of bands) {
+    const list = countByBand.get(band.key)!;
+    // min === total is "all of them", which reads better as a required group
+    // and spares the trade site a count group that can never be partly met.
+    if (band.min >= list.length) {
+      stats.push({ type: "and", filters: list.map(toStatFilter) });
+      strategyParts.push(
+        list.length === 1 ? "1 required" : `all ${list.length} ${band.label.toLowerCase()}`,
+      );
+    } else {
+      stats.push({ type: "count", value: { min: band.min }, filters: list.map(toStatFilter) });
+      strategyParts.push(`any ${band.min} of ${list.length} ${band.label.toLowerCase()}`);
+    }
   }
   if (notF.length > 0) {
     stats.push({ type: "not", filters: notF.map(toStatFilter) });
@@ -445,7 +539,10 @@ export async function buildItemQuery(
     }
     query.filters.misc_filters = { filters: gemFilters };
   } else if (item.rarity === "unique") {
-    query.name = item.name;
+    // PoB prepends "Foulborn " to a mutated unique's title (Item.lua) and
+    // strips it back off whenever it needs the real name — trade only knows the
+    // real one, and sending the prefixed title is a 400 "Unknown item name".
+    query.name = item.name.replace(/^foulborn\s+/i, "");
     if (useBase) query.type = item.baseType;
     query.filters.type_filters = { filters: { rarity: { option: "unique" } } };
   } else if (item.category === "flask" || item.category === "charm") {
@@ -535,7 +632,7 @@ export async function buildItemQuery(
     query,
     matched: filters.length,
     unmatched,
-    countMin,
+    bands,
     filters,
     equipment,
     pseudo,

@@ -36,7 +36,13 @@ export function TradeLinkButton({
   const { mode, setMode, sel, update, data, loading, error } = trade;
   const [showPanel, setShowPanel] = useState(false);
 
-  const countTotal = sel.filters.filter((f) => f.group === "count").length;
+  /**
+   * Thresholds come from the server, which is the only side that knows which
+   * mods survived family and fractured grouping and therefore how big each
+   * pool really is. Local edits are held in `sel.bandMins` and win until the
+   * next response.
+   */
+  const bands = data?.bands ?? [];
 
   return (
     <div className="flex flex-col gap-2 px-4 pb-3">
@@ -206,21 +212,35 @@ export function TradeLinkButton({
             <span className="mt-1 text-[10px] uppercase tracking-wide text-muted">Modifiers</span>
           )}
 
-          {countTotal >= 2 && (
-            <label className="flex items-center gap-2 pb-1 text-xs text-muted">
-              Match any
-              <input
-                type="number"
-                min={1}
-                max={countTotal}
-                value={sel.countMin}
-                onChange={(e) =>
-                  update({ countMin: Math.max(1, Math.min(countTotal, Number(e.target.value) || 1)) })
-                }
-                className="w-12 rounded border border-border bg-surface px-1 py-0.5 text-text"
-              />
-              of {countTotal} optional
-            </label>
+          {bands.length > 0 && (
+            <div className="flex flex-col gap-1 pb-1">
+              {bands.map((band) => (
+                <label key={band.key} className="flex items-center gap-2 text-xs text-muted">
+                  <span className="w-14 shrink-0 text-text">{band.label}</span>
+                  match any
+                  <input
+                    type="number"
+                    min={1}
+                    max={band.total}
+                    value={sel.bandMins[band.key] ?? band.min}
+                    onChange={(e) =>
+                      update({
+                        bandMins: {
+                          ...sel.bandMins,
+                          [band.key]: Math.max(
+                            1,
+                            Math.min(band.total, Number(e.target.value) || 1),
+                          ),
+                        },
+                      })
+                    }
+                    className="w-12 rounded border border-border bg-surface px-1 py-0.5 text-text"
+                    disabled={band.total < 2}
+                  />
+                  of {band.total}
+                </label>
+              ))}
+            </div>
           )}
           {sel.filters.map((f, i) => (
             <div key={i} className="flex items-center gap-1.5 text-xs">
