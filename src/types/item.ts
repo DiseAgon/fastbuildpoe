@@ -11,6 +11,7 @@ export type ModType =
   | "fractured"
   | "enchant"
   | "scourge"
+  | "crucible"
   | "unknown";
 
 export interface ParsedMod {

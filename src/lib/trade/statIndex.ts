@@ -55,7 +55,21 @@ const TYPE_FAMILY: Partial<Record<ModType, string[]>> = {
   fractured: ["explicit"],
   implicit: ["implicit"],
   enchant: ["enchant"],
+  crucible: ["crucible"],
 };
+
+/**
+ * Mod types that must not fall back to a same-text `explicit` stat.
+ *
+ * Trade lists crucible passives as whole multi-line entries with literal rolls
+ * and a "(Tier N)" suffix — "-8% to all Elemental Resistances\nAttacks with
+ * this Weapon Penetrate 10% Elemental Resistances (Tier 2)" — so a single PoB
+ * line can never match one. The same line does exist as an explicit stat, and
+ * taking it silently turned a crucible passive into a requirement for an
+ * explicit mod the item does not have, which finds nothing. Reporting the line
+ * as unsearchable is the honest result; the UI already says so.
+ */
+const NO_EXPLICIT_FALLBACK = new Set<ModType>(["crucible"]);
 
 const indexCache: Partial<Record<GameId, StatIndex>> = {};
 
@@ -139,6 +153,7 @@ export function matchMod(
     hit = candidates.find((c) => c.entry.type === type);
     if (hit) break;
   }
+  if (!hit && NO_EXPLICIT_FALLBACK.has(mod.type)) return null;
   if (!hit) hit = candidates.find((c) => c.entry.type === "explicit") ?? candidates[0];
 
   return { entry: hit.entry, negated: /\breduced\b/i.test(mod.text), option: hit.option };

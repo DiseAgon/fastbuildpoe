@@ -35,6 +35,7 @@ interface ApiItem {
   craftedMods?: string[];
   fracturedMods?: string[];
   enchantMods?: string[];
+  crucibleMods?: string[];
   runeMods?: string[];
   socketedItems?: ApiItem[];
   sockets?: Array<{ group: number }>;
@@ -118,6 +119,7 @@ function parseApiItem(item: ApiItem, x = 0): ParsedItem {
     ...(item.fracturedMods ?? []).map((m) => toMod(m, "fractured")),
     ...(item.explicitMods ?? []).map((m) => toMod(m, "explicit")),
     ...(item.craftedMods ?? []).map((m) => toMod(m, "crafted")),
+    ...(item.crucibleMods ?? []).map((m) => toMod(m, "crucible")),
     ...(item.runeMods ?? []).map((m) => toMod(m, "explicit")),
   ];
 

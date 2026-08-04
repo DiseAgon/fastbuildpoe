@@ -19,6 +19,7 @@ const ModSchema = z.object({
     "fractured",
     "enchant",
     "scourge",
+    "crucible",
     "unknown",
   ]),
 });

@@ -25,6 +25,7 @@ export const MOD_TYPE_LABEL: Record<ModType, string> = {
   fractured: "fractured",
   enchant: "enchant",
   scourge: "scourge",
+  crucible: "crucible",
   unknown: "mod",
 };
 
@@ -35,5 +36,6 @@ export const MOD_TYPE_CLASS: Record<ModType, string> = {
   fractured: "text-rarity-unique",
   enchant: "text-accent",
   scourge: "text-danger",
+  crucible: "text-accent-2",
   unknown: "text-muted",
 };

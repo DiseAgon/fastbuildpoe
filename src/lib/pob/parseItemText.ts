@@ -95,6 +95,13 @@ const META_KEYS = new Set([
 const INFLUENCE_LINE =
   /^(Shaper|Elder|Crusader|Hunter|Redeemer|Warlord|Searing Exarch|Eater of Worlds) Item$/i;
 const FLAG_LINE = /^(Synthesised Item|Fractured Item|Mirrored|Split|Foil Unique(?: \([^)]*\))?)$/i;
+/**
+ * Class restriction. PoB writes it both above the `Implicits:` count and as a
+ * mod line below it, and it is counted in neither — treating it as a mod ended
+ * the metadata scan early (losing the implicit count) or shifted every mod's
+ * implicit/explicit classification by one.
+ */
+const CLASS_REQUIREMENT_LINE = /^Requires Class\b/i;
 
 /** A line shaped like `Key: value` (used to skip unknown metadata such as `Rune:`). */
 const META_SHAPED = /^[A-Za-z][A-Za-z'/ ]*:\s/;
@@ -112,10 +119,19 @@ function asMeta(line: string): MetaLine | null {
   return { key, value: line.slice(idx + 1).trim() };
 }
 
+/**
+ * PoB tags a mod's kind inline; only untagged lines have to be classified by
+ * position. `{crucible}` is checked first because PoB's own re-parse can file a
+ * crucible line into the implicit block (Item.lua tests `implicit` before
+ * `crucible`), which would otherwise make it look like the item's implicit.
+ */
 function detectModType(annotations: string[], isImplicit: boolean): ModType {
+  if (annotations.includes("crucible")) return "crucible";
   if (annotations.includes("crafted")) return "crafted";
   if (annotations.includes("fractured")) return "fractured";
   if (annotations.includes("scourge")) return "scourge";
+  if (annotations.includes("enchant")) return "enchant";
+  if (annotations.includes("implicit")) return "implicit";
   return isImplicit ? "implicit" : "explicit";
 }
 
@@ -267,6 +283,7 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
       continue;
     }
     if (FLAG_LINE.test(cleanedMeta)) continue;
+    if (CLASS_REQUIREMENT_LINE.test(cleanedMeta)) continue;
     // Uniques with variant bases repeat the base-type line (e.g.
     // `{variant:2}Two-Toned Boots (…)`) between metadata lines — skip them so
     // later metadata (Quality, Implicits, …) still gets parsed.
@@ -308,6 +325,7 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
       continue;
     }
     if (FLAG_LINE.test(cleaned)) continue;
+    if (CLASS_REQUIREMENT_LINE.test(cleaned)) continue;
     if (cleaned === baseType) continue;
     // Skip affix-detail / metadata lines that some exports interleave with mods
     // (e.g. "Prefix:", "Suffix:", "Unique ID:") — they'd otherwise show as junk.
@@ -315,9 +333,17 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
     // Skip stray "null"/placeholder lines.
     if (/^null$/i.test(cleaned)) continue;
 
-    const isImplicit = modIndex < implicitCount;
+    /**
+     * `Implicits: N` counts the enchant + scourge + implicit lines PoB writes
+     * at the top of the block, so those consume the budget and everything after
+     * it is explicit. Crucible passives are excluded from that count but can be
+     * written among the implicits — letting one take a slot pushed the item's
+     * real implicit out into the explicits.
+     */
+    const isCrucible = annotations.includes("crucible");
+    const isImplicit = !isCrucible && modIndex < implicitCount;
     mods.push(toMod(line, isImplicit));
-    modIndex++;
+    if (!isCrucible) modIndex++;
   }
 
   return {
