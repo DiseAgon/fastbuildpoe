@@ -6,7 +6,7 @@ import { computePseudoFilters } from "./pseudo";
 import { MOD_FAMILIES } from "./groups";
 import { getWeaponBase } from "./weaponBase";
 import { computeWeaponDps } from "./weaponDps";
-import { isValidGemType } from "./gemTypes";
+import { resolveGemType } from "./gemTypes";
 
 /**
  * Budget axis (see SPEC §7) — seeds sensible defaults the user can then tweak
@@ -126,10 +126,17 @@ export interface TradeStatGroup {
   value?: { min?: number; max?: number };
 }
 
+/**
+ * Trade `type` is either a plain base type or, for gems that share one base
+ * across several variants (transfigured skills), the base plus the
+ * discriminator that picks the variant.
+ */
+export type TradeType = string | { option: string; discriminator: string };
+
 export interface TradeQuery {
   status: { option: string };
   name?: string;
-  type?: string;
+  type?: TradeType;
   stats: TradeStatGroup[];
   filters: Record<string, { filters: Record<string, unknown> }>;
 }
@@ -410,18 +417,29 @@ export async function buildItemQuery(
     const sockets = g ? g.sockets : null;
     const gemFilters: Record<string, unknown> = {};
 
-    if (isValidGemType(game, item.name)) {
-      query.type = item.name;
+    // PoB names gems after the granted effect ("Multistrike", "Cyclone of
+    // Tumult"); the trade base type is often different or needs a variant
+    // discriminator, so always go through the resolver.
+    const gemType = resolveGemType(game, item.name);
+    if (gemType) {
+      query.type = gemType.discriminator
+        ? { option: gemType.type, discriminator: gemType.discriminator }
+        : gemType.type;
       if (level !== null) gemFilters.gem_level = { min: level };
       if (quality !== null) gemFilters.quality = { min: quality };
       if (sockets !== null) gemFilters.gem_sockets = { min: sockets };
     } else if (game === "poe2") {
-      // PoE2 trades these as Uncut gems (skill names like "Grace"/supports
-      // aren't valid types). Fall back to the uncut gem so the link is valid.
+      // PoE2 sells uncut gems that the player carves into a skill, so an
+      // unlisted name is bought as its uncut base rather than not at all.
       query.type = /\bsupport\b/i.test(item.name) ? "Uncut Support Gem" : "Uncut Skill Gem";
       if (level !== null) gemFilters.gem_level = { min: level };
     } else {
-      query.type = item.name; // PoE1 gems are valid types — best effort
+      // Unknown PoE1 gem (data snapshot older than the league): sending the raw
+      // name would 400 with "Unknown item base type". Degrade to the gem
+      // category so the link still opens on a usable search.
+      // "Any Gem", not a skill/support guess: PoB drops the " Support" suffix,
+      // so the name gives us nothing to tell the two apart.
+      query.filters.type_filters = { filters: { category: { option: "gem" } } };
       if (level !== null) gemFilters.gem_level = { min: level };
       if (quality !== null) gemFilters.quality = { min: quality };
     }

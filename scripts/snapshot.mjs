@@ -120,19 +120,27 @@ for (const [game, base] of Object.entries(GAMES)) {
 
   const weaponCount = await snapshotWeapons(game);
 
-  // Valid gem type names (so we don't generate "Unknown item base type" links).
-  let gemTypes = [];
+  /**
+   * Searchable gem entries, kept whole rather than reduced to `type` names.
+   *
+   * Transfigured gems share their base gem's `type` and are selected by a
+   * discriminator: "Cyclone of Tumult" is `{type: "Cyclone", disc: "alt_x"}`.
+   * Flattening to `type` collapsed all 263 of them onto their base gem, so the
+   * app could neither recognise nor search a transfigured skill.
+   */
+  let gemEntries = [];
   try {
     const items = await getJson(`${base}/data/items`);
-    gemTypes = (items.result ?? [])
+    gemEntries = (items.result ?? [])
       .filter((g) => /gem/i.test(g.label ?? ""))
-      .flatMap((g) => (g.entries ?? []).map((e) => e.type))
-      .filter(Boolean);
-    gemTypes = [...new Set(gemTypes)];
+      .flatMap((g) => g.entries ?? [])
+      .filter((e) => e.type)
+      .map((e) => (e.disc ? { type: e.type, text: e.text ?? e.type, disc: e.disc } : { type: e.type }));
   } catch {}
-  writeFileSync(join(OUT, `gemtypes.${game}.json`), JSON.stringify(gemTypes));
+  writeFileSync(join(OUT, `gemtypes.${game}.json`), JSON.stringify(gemEntries));
 
+  const discCount = gemEntries.filter((e) => e.disc).length;
   console.log(
-    `${game}: ${entries.length} stats, ${leagues.length} leagues, divine=${!!divineIcon}, ${weaponCount} weapon bases, ${gemTypes.length} gem types`,
+    `${game}: ${entries.length} stats, ${leagues.length} leagues, divine=${!!divineIcon}, ${weaponCount} weapon bases, ${gemEntries.length} gem entries (${discCount} transfigured)`,
   );
 }
