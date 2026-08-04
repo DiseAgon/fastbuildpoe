@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type { BreakoutBoard, BreakoutRow } from "@/lib/market/ninja";
 
@@ -185,6 +186,7 @@ export default function BreakoutsPage() {
               ))}
             </select>
           )}
+          <ThemeToggle />
         </div>
       </header>
 

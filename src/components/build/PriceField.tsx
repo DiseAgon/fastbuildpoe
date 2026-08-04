@@ -33,7 +33,7 @@ export function PriceField({ itemKey, fieldId }: { itemKey: string; fieldId: str
       };
     }
     if (quote?.approx) {
-      return { text: "≈ ninja", className: "text-amber-400/90", title: quote.note };
+      return { text: "≈ ninja", className: "text-warn/90", title: quote.note };
     }
     return {
       text: "ninja",

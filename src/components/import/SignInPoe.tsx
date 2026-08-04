@@ -116,7 +116,7 @@ export function SignInPoe({
         Sign out
       </button>
       {error && (
-        <span className="w-full text-xs text-red-400" role="alert">
+        <span className="w-full text-xs text-danger" role="alert">
           {error}
         </span>
       )}

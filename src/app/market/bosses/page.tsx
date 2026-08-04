@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type { BossBoard, BossCard, BossDrop, BossSection } from "@/lib/market/bosses";
 
@@ -294,6 +295,7 @@ export default function BossProfitPage() {
               ))}
             </select>
           )}
+          <ThemeToggle />
         </div>
       </header>
 

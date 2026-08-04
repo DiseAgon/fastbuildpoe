@@ -14,6 +14,8 @@ const config: Config = {
         accent: "var(--color-accent)",
         "accent-soft": "var(--color-accent-soft)",
         "accent-2": "var(--color-accent-2)",
+        danger: "var(--color-danger)",
+        warn: "var(--color-warn)",
         rarity: {
           normal: "var(--rarity-normal)",
           magic: "var(--rarity-magic)",

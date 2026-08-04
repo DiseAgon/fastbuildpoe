@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type { FlipPick, PicksBoard } from "@/lib/market/recommend";
 
@@ -129,6 +130,7 @@ export default function FlipPicksPage() {
               ))}
             </select>
           )}
+          <ThemeToggle />
         </div>
       </header>
 

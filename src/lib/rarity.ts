@@ -34,6 +34,6 @@ export const MOD_TYPE_CLASS: Record<ModType, string> = {
   crafted: "text-rarity-gem",
   fractured: "text-rarity-unique",
   enchant: "text-accent",
-  scourge: "text-red-400",
+  scourge: "text-danger",
   unknown: "text-muted",
 };

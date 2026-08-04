@@ -161,7 +161,7 @@ export function ExportPobButton({
         </div>
       )}
 
-      {error && <span className="text-xs text-red-400">{error}</span>}
+      {error && <span className="text-xs text-danger">{error}</span>}
     </>
   );
 }

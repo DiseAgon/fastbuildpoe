@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { ImportForm } from "@/components/import/ImportForm";
 import { SignInPoe } from "@/components/import/SignInPoe";
 import { HowToUse } from "@/components/HowToUse";
@@ -375,6 +376,7 @@ export default function Home() {
           >
             Market ↗
           </a>
+          <ThemeToggle />
         </div>
       </header>
 
@@ -403,7 +405,7 @@ export default function Home() {
               loading={loading}
             />
             {error && (
-              <p className="mt-3 text-sm text-red-400" role="alert">
+              <p className="mt-3 text-sm text-danger" role="alert">
                 {error}
               </p>
             )}

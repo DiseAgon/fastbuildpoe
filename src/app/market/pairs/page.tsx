@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type { PairBoard, PairRow } from "@/lib/market/officialCx";
 
@@ -207,6 +208,7 @@ export default function PairExplorerPage() {
               ))}
             </select>
           )}
+          <ThemeToggle />
         </div>
       </header>
 

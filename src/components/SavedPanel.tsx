@@ -61,7 +61,7 @@ export function SavedPanel({
                     <button
                       type="button"
                       onClick={() => onDelete(s.id)}
-                      className="shrink-0 text-xs text-muted hover:text-red-400"
+                      className="shrink-0 text-xs text-muted hover:text-danger"
                       title="Delete"
                     >
                       ✕
@@ -74,7 +74,7 @@ export function SavedPanel({
               <button
                 type="button"
                 onClick={onClear}
-                className="text-xs text-muted hover:text-red-400"
+                className="text-xs text-muted hover:text-danger"
               >
                 Clear all
               </button>

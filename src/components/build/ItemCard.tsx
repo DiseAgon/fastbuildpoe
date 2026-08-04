@@ -32,7 +32,7 @@ function GearTradeSection({
       <ModList item={item} trade={trade} />
 
       {item.unparsed.length > 0 && (
-        <p className="px-4 py-2 text-xs text-amber-400/80">
+        <p className="px-4 py-2 text-xs text-warn/80">
           {item.unparsed.length} line(s) not parsed
         </p>
       )}
@@ -99,13 +99,13 @@ export function ItemCard({ item, number }: { item: ParsedItem; number: number })
         {!isGem && item.itemLevel !== undefined && <span>iLvl {item.itemLevel}</span>}
         {!isGem && item.quality ? <span>Q {item.quality}%</span> : null}
         {item.sockets && <span>{item.sockets}</span>}
-        {item.corrupted && <span className="text-red-400">Corrupted</span>}
+        {item.corrupted && <span className="text-danger">Corrupted</span>}
       </div>
 
       {isGem ? (
         <>
           {item.unparsed.length > 0 && (
-            <p className="px-4 py-2 text-xs text-amber-400/80">
+            <p className="px-4 py-2 text-xs text-warn/80">
               {item.unparsed.length} line(s) not parsed
             </p>
           )}

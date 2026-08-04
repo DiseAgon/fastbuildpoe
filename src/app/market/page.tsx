@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type { FlipBoard, FlipRow } from "@/lib/market/ninja";
 
@@ -337,6 +338,7 @@ export default function MarketPage() {
               ))}
             </select>
           )}
+          <ThemeToggle />
         </div>
       </header>
 

@@ -7,6 +7,15 @@
    Warm cream base + energetic orange (cat brand) + trust blue.
    Palette in oklch for perceptual consistency; rarity colors match the game,
    darkened for contrast on a light background.
+
+   Dark mode is a deliberate counterpart, not an inversion: the same tabby
+   orange over warm charcoal ("the cat at night"), with the rarity colours
+   allowed back up to their in-game brightness because they finally sit on a
+   dark surface, the way they do in PoE itself.
+
+   The theme lives on `<html data-theme>`, written before first paint by the
+   inline script in layout.tsx, so there is no flash and no second palette to
+   keep in sync here.
 ---------------------------------------------------------------------------- */
 :root {
   /* Light, warm base */
@@ -20,6 +29,10 @@
   --color-accent: oklch(56% 0.18 42); /* orange, WCAG-safe on cream */
   --color-accent-soft: oklch(50% 0.16 35); /* deep amber */
   --color-accent-2: oklch(50% 0.19 262); /* blue */
+  /* Status colours, so error/warning text is a token rather than a stray
+     Tailwind palette class that only reads well on one background. */
+  --color-danger: oklch(52% 0.2 27);
+  --color-warn: oklch(55% 0.13 75);
 
   /* In-game rarity colors, darkened for light surfaces */
   --rarity-normal: oklch(45% 0 0);
@@ -38,6 +51,45 @@
   --rarity-gem-c: 50% 0.12 190;
   --border-c: 88% 0.028 70;
 
+  /* --- Material tokens -----------------------------------------------------
+     The paper doll and gem trays are skeuomorphic: a recessed tray, sockets cut
+     into it, tiles lifted out of it. That illusion is built from light coming
+     from above, so every gradient stop, inner highlight and drop shadow has to
+     flip with the theme — they are named by their role in the material, not by
+     their colour. */
+  --page-glow-warm: oklch(85% 0.11 60 / 0.4);
+  --page-glow-cool: oklch(85% 0.1 255 / 0.32);
+  --focus-ring: oklch(56% 0.18 42 / 0.85);
+  --selection-bg: oklch(75% 0.15 55 / 0.35);
+
+  --edge-highlight: oklch(100% 0 0 / 0.7); /* lit top edge of a raised surface */
+  --edge-highlight-strong: oklch(100% 0 0 / 0.9);
+  --inner-shade: oklch(45% 0.06 60 / 0.12); /* light pooling inside a recess */
+  --inner-shade-strong: oklch(45% 0.06 60 / 0.16);
+  --drop-shade: oklch(45% 0.06 60 / 0.1);
+
+  --tray-glow: oklch(88% 0.05 70 / 0.5);
+  --tray-top: oklch(94% 0.022 72);
+  --tray-bottom: oklch(97% 0.014 78);
+
+  --slot-top: var(--color-surface);
+  --slot-bottom: oklch(97% 0.012 78);
+  --plate-top: oklch(93% 0.018 72);
+  --plate-bottom: oklch(97% 0.01 78);
+  /* Item art is drawn for dark backgrounds; on cream it needs a contact shadow
+     to stop it washing out. On dark it is already at home, so this goes away. */
+  --art-shade: oklch(30% 0.04 60 / 0.35);
+
+  --socket-border: oklch(80% 0.03 70 / 0.9);
+  --socket-top: oklch(94% 0.018 72 / 0.5);
+  --socket-bottom: oklch(96% 0.012 78 / 0.3);
+  --socket-text: oklch(62% 0.03 70);
+
+  --gem-tray-glow: oklch(88% 0.04 200 / 0.35);
+  --gem-tray-top: oklch(95% 0.016 200);
+  --gem-tray-bottom: oklch(97.5% 0.01 210);
+  --gem-tray-shade: oklch(45% 0.05 220 / 0.1);
+
   --font-serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino,
     Georgia, "Times New Roman", serif;
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
@@ -52,6 +104,70 @@
   color-scheme: light;
 }
 
+:root[data-theme="dark"] {
+  --color-bg: oklch(19% 0.016 62);
+  --color-surface: oklch(23.5% 0.019 64);
+  --color-surface-raised: oklch(28% 0.023 66);
+  --color-border: oklch(36% 0.025 64);
+  --color-text: oklch(93% 0.012 78);
+  --color-text-muted: oklch(72% 0.018 72);
+  /* Lifted well past the light-mode values: the same hue at 56% lightness is
+     unreadable on charcoal, and an accent that fails contrast is not an accent. */
+  --color-accent: oklch(76% 0.15 58);
+  --color-accent-soft: oklch(83% 0.12 66);
+  --color-accent-2: oklch(74% 0.13 250);
+  --color-danger: oklch(70% 0.17 25);
+  --color-warn: oklch(80% 0.12 80);
+
+  /* Rarity at in-game brightness — this is what these colours were drawn for. */
+  --rarity-normal: oklch(82% 0 0);
+  --rarity-magic: oklch(68% 0.16 265);
+  --rarity-rare: oklch(86% 0.15 100);
+  --rarity-unique: oklch(70% 0.14 52);
+  --rarity-gem: oklch(75% 0.11 190);
+  --rarity-normal-c: 82% 0 0;
+  --rarity-magic-c: 68% 0.16 265;
+  --rarity-rare-c: 86% 0.15 100;
+  --rarity-unique-c: 70% 0.14 52;
+  --rarity-gem-c: 75% 0.11 190;
+  --border-c: 36% 0.025 64;
+
+  --page-glow-warm: oklch(45% 0.11 55 / 0.28);
+  --page-glow-cool: oklch(42% 0.1 258 / 0.24);
+  --focus-ring: oklch(76% 0.15 58 / 0.9);
+  --selection-bg: oklch(60% 0.14 55 / 0.4);
+
+  /* Depth on dark comes mostly from shadow, with only a hairline of lit edge —
+     a white highlight at light-mode strength would read as a plastic outline. */
+  --edge-highlight: oklch(100% 0 0 / 0.06);
+  --edge-highlight-strong: oklch(100% 0 0 / 0.09);
+  --inner-shade: oklch(0% 0 0 / 0.35);
+  --inner-shade-strong: oklch(0% 0 0 / 0.45);
+  --drop-shade: oklch(0% 0 0 / 0.4);
+
+  --tray-glow: oklch(45% 0.05 60 / 0.35);
+  --tray-top: oklch(22% 0.019 62);
+  --tray-bottom: oklch(17.5% 0.014 66);
+
+  --slot-top: oklch(26% 0.02 64);
+  --slot-bottom: oklch(22% 0.017 66);
+  --plate-top: oklch(20% 0.016 62);
+  --plate-bottom: oklch(24% 0.018 66);
+  --art-shade: oklch(0% 0 0 / 0);
+
+  --socket-border: oklch(38% 0.025 64 / 0.9);
+  --socket-top: oklch(22% 0.018 62 / 0.6);
+  --socket-bottom: oklch(18% 0.014 66 / 0.4);
+  --socket-text: oklch(58% 0.022 68);
+
+  --gem-tray-glow: oklch(45% 0.05 210 / 0.28);
+  --gem-tray-top: oklch(22.5% 0.019 205);
+  --gem-tray-bottom: oklch(18% 0.014 212);
+  --gem-tray-shade: oklch(0% 0 0 / 0.35);
+
+  color-scheme: dark;
+}
+
 html,
 body {
   background-color: var(--color-bg);
@@ -62,20 +178,20 @@ body {
 body {
   /* soft orange→blue tint so the page reads warm and lively, not flat white */
   background-image:
-    radial-gradient(90% 60% at 12% -10%, oklch(85% 0.11 60 / 0.4), transparent 55%),
-    radial-gradient(90% 60% at 92% -10%, oklch(85% 0.1 255 / 0.32), transparent 55%);
+    radial-gradient(90% 60% at 12% -10%, var(--page-glow-warm), transparent 55%),
+    radial-gradient(90% 60% at 92% -10%, var(--page-glow-cool), transparent 55%);
   background-attachment: fixed;
 }
 
 /* Visible keyboard-focus ring everywhere, orange to match the accent */
 :focus-visible {
-  outline: 2px solid oklch(56% 0.18 42 / 0.85);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
   border-radius: 4px;
 }
 
 ::selection {
-  background: oklch(75% 0.15 55 / 0.35);
+  background: var(--selection-bg);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -104,12 +220,12 @@ body {
   border-radius: var(--radius);
   padding: 0.625rem;
   background:
-    radial-gradient(120% 90% at 50% -20%, oklch(88% 0.05 70 / 0.5), transparent 60%),
-    linear-gradient(180deg, oklch(94% 0.022 72), oklch(97% 0.014 78));
+    radial-gradient(120% 90% at 50% -20%, var(--tray-glow), transparent 60%),
+    linear-gradient(180deg, var(--tray-top), var(--tray-bottom));
   box-shadow:
-    inset 0 1px 0 oklch(100% 0 0 / 0.7),
-    inset 0 2px 10px oklch(45% 0.06 60 / 0.12),
-    0 1px 0 oklch(100% 0 0 / 0.6);
+    inset 0 1px 0 var(--edge-highlight),
+    inset 0 2px 10px var(--inner-shade),
+    0 1px 0 var(--edge-highlight);
 }
 
 /* Equipment grid: two-up on phones, the in-game silhouette from 640px where
@@ -154,10 +270,10 @@ body {
   overflow: hidden;
   border-radius: 8px;
   border: 1px solid oklch(var(--slot-tint) / 0.45);
-  background: linear-gradient(180deg, var(--color-surface), oklch(97% 0.012 78));
+  background: linear-gradient(180deg, var(--slot-top), var(--slot-bottom));
   box-shadow:
-    inset 0 1px 0 oklch(100% 0 0 / 0.9),
-    0 1px 2px oklch(45% 0.06 60 / 0.1);
+    inset 0 1px 0 var(--edge-highlight-strong),
+    0 1px 2px var(--drop-shade);
   text-align: left;
   transition:
     transform var(--duration-fast) var(--ease-out-expo),
@@ -182,9 +298,9 @@ body {
   transform: translateY(-2px);
   border-color: oklch(var(--slot-tint) / 0.8);
   box-shadow:
-    inset 0 1px 0 oklch(100% 0 0 / 0.9),
+    inset 0 1px 0 var(--edge-highlight-strong),
     0 6px 16px -6px oklch(var(--slot-tint) / 0.5),
-    0 2px 4px oklch(45% 0.06 60 / 0.12);
+    0 2px 4px var(--inner-shade);
 }
 
 .gear-slot:active {
@@ -194,9 +310,9 @@ body {
 .gear-slot[aria-pressed="true"] {
   border-color: var(--color-accent);
   box-shadow:
-    inset 0 1px 0 oklch(100% 0 0 / 0.9),
+    inset 0 1px 0 var(--edge-highlight-strong),
     0 0 0 1px var(--color-accent),
-    0 8px 20px -8px oklch(56% 0.18 42 / 0.45);
+    0 8px 20px -8px var(--focus-ring);
 }
 
 .gear-slot[data-rarity="unique"] { --slot-tint: var(--rarity-unique-c); }
@@ -216,10 +332,10 @@ body {
   border-radius: 6px;
   background:
     radial-gradient(70% 70% at 50% 30%, oklch(var(--slot-tint) / 0.16), transparent 70%),
-    linear-gradient(180deg, oklch(93% 0.018 72), oklch(97% 0.01 78));
+    linear-gradient(180deg, var(--plate-top), var(--plate-bottom));
   box-shadow:
     inset 0 0 0 1px oklch(var(--slot-tint) / 0.3),
-    inset 0 2px 5px oklch(45% 0.06 60 / 0.16);
+    inset 0 2px 5px var(--inner-shade-strong);
 }
 
 .gear-slot__plate img {
@@ -227,8 +343,9 @@ body {
   width: 100%;
   object-fit: contain;
   /* Item art is drawn for dark backgrounds; a touch of contrast keeps it from
-     washing out on cream without altering the colours. */
-  filter: drop-shadow(0 1px 1px oklch(30% 0.04 60 / 0.35));
+     washing out on cream without altering the colours. In dark mode the token
+     goes transparent — the art is already on the surface it was made for. */
+  filter: drop-shadow(0 1px 1px var(--art-shade));
 }
 
 /* Row-spanning cells (weapon, offhand, body) get the game's big-art treatment
@@ -281,13 +398,13 @@ body {
   min-height: 62px;
   padding: 0 0.5rem;
   border-radius: 8px;
-  border: 1px dashed oklch(80% 0.03 70 / 0.9);
-  background: linear-gradient(180deg, oklch(94% 0.018 72 / 0.5), oklch(96% 0.012 78 / 0.3));
-  box-shadow: inset 0 2px 6px oklch(45% 0.06 60 / 0.1);
+  border: 1px dashed var(--socket-border);
+  background: linear-gradient(180deg, var(--socket-top), var(--socket-bottom));
+  box-shadow: inset 0 2px 6px var(--inner-shade);
   font-size: 10px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: oklch(62% 0.03 70);
+  color: var(--socket-text);
   text-align: center;
 }
 
@@ -302,12 +419,12 @@ body {
 .gem-group {
   border-radius: var(--radius);
   background:
-    radial-gradient(120% 90% at 50% -30%, oklch(88% 0.04 200 / 0.35), transparent 60%),
-    linear-gradient(180deg, oklch(95% 0.016 200), oklch(97.5% 0.01 210));
+    radial-gradient(120% 90% at 50% -30%, var(--gem-tray-glow), transparent 60%),
+    linear-gradient(180deg, var(--gem-tray-top), var(--gem-tray-bottom));
   box-shadow:
-    inset 0 1px 0 oklch(100% 0 0 / 0.7),
-    inset 0 2px 10px oklch(45% 0.05 220 / 0.1),
-    0 1px 0 oklch(100% 0 0 / 0.6);
+    inset 0 1px 0 var(--edge-highlight),
+    inset 0 2px 10px var(--gem-tray-shade),
+    0 1px 0 var(--edge-highlight);
 }
 
 /* Sockets in a wrapping row, joined by link bars. */

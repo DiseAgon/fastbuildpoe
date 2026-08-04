@@ -100,7 +100,7 @@ export function GemTradeControls({ item }: { item: ParsedItem }) {
           <span className="text-sm text-muted">{loading ? "Building link…" : "—"}</span>
         )}
         {error && (
-          <span className="text-xs text-red-400" role="alert">
+          <span className="text-xs text-danger" role="alert">
             {error}
           </span>
         )}

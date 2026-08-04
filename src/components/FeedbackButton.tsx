@@ -96,7 +96,7 @@ export function FeedbackButton() {
                   </a>
                 </div>
                 {state === "error" && (
-                  <p className="text-xs text-red-400">
+                  <p className="text-xs text-danger">
                     Couldn&apos;t send — please use the email link above.
                   </p>
                 )}

@@ -75,7 +75,7 @@ export function ModList({
                 {mod.text}
               </span>
               {searchable && included && filter.group === "not" && (
-                <span className="ml-auto shrink-0 text-[10px] uppercase text-red-400">excl</span>
+                <span className="ml-auto shrink-0 text-[10px] uppercase text-danger">excl</span>
               )}
               {!searchable && (
                 <span className="ml-auto shrink-0 text-[10px] uppercase text-muted/50">
