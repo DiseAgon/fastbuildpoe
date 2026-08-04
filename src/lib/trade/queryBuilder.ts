@@ -197,6 +197,23 @@ function bandedMin(value: number | undefined, factor: number): number | null {
 }
 
 /**
+ * PoB splits Two-Toned Boots into three bases distinguished by a defence
+ * parenthetical ("Two-Toned Boots (Armour/Evasion)") because it needs the
+ * defence values; trade has one "Two-Toned Boots" and answers the qualified
+ * name with "Unknown item base type".
+ *
+ * Matched by the defence shape rather than by any trailing parenthetical: no
+ * PoE1 base type contains one, but 72 PoE2 entries do ("Uncut Spirit Gem
+ * (Level 10)"), and those are real type names.
+ */
+const DEFENCE_VARIANT =
+  /\s*\((?:Armour|Evasion|Energy Shield|Ward)(?:\s*\/\s*(?:Armour|Evasion|Energy Shield|Ward))+\)$/i;
+
+function tradeBaseType(baseType: string): string {
+  return baseType.replace(DEFENCE_VARIANT, "");
+}
+
+/**
  * Extract a searchable flask base type from a (possibly magic) flask name.
  * Magic flasks carry a prefix + suffix, e.g.
  *   "Seething Ultimate Life Flask of the Mixologist" → "Ultimate Life Flask".
@@ -432,11 +449,20 @@ export async function buildItemQuery(
    * demands all of it — a 2-mod pool at the 0.6 "as-is" fraction would need
    * both — and splitting exists precisely to create small pools.
    */
+  /**
+   * Uniques are never split. Their mods are fixed rolls on the item, not
+   * affixes — there is no prefix or suffix to separate — so the only division
+   * left would be implicit vs the rest, and on a unique the implicit is
+   * typically a corruption that almost no listing carries. Ancient Skull's
+   * corrupted "+2 to Level of Socketed Gems" is on 5 of 4814 listed.
+   */
+  const splitBands = item.rarity !== "unique";
   const byBand = new Map<StatBand, EditableFilter[]>();
   for (const f of countF) {
-    const list = byBand.get(f.band) ?? [];
+    const key = splitBands ? f.band : "other";
+    const list = byBand.get(key) ?? [];
     list.push(f);
-    byBand.set(f.band, list);
+    byBand.set(key, list);
   }
   const countByBand = new Map<StatBand, EditableFilter[]>();
   for (const [key, list] of byBand) {
@@ -543,12 +569,12 @@ export async function buildItemQuery(
     // strips it back off whenever it needs the real name — trade only knows the
     // real one, and sending the prefixed title is a 400 "Unknown item name".
     query.name = item.name.replace(/^foulborn\s+/i, "");
-    if (useBase) query.type = item.baseType;
+    if (useBase) query.type = tradeBaseType(item.baseType);
     query.filters.type_filters = { filters: { rarity: { option: "unique" } } };
   } else if (item.category === "flask" || item.category === "charm") {
     if (useBase) query.type = consumableBase(item.baseType);
   } else if (useBase) {
-    query.type = item.baseType;
+    query.type = tradeBaseType(item.baseType);
   }
 
   // Equipment filters: armour defences + weapon DPS, routed to the right group.
