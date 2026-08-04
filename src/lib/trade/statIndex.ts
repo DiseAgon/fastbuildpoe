@@ -55,21 +55,29 @@ const TYPE_FAMILY: Partial<Record<ModType, string[]>> = {
   fractured: ["explicit"],
   implicit: ["implicit"],
   enchant: ["enchant"],
-  crucible: ["crucible"],
 };
 
 /**
  * Mod types that must not fall back to a same-text `explicit` stat.
  *
- * Trade lists crucible passives as whole multi-line entries with literal rolls
- * and a "(Tier N)" suffix — "-8% to all Elemental Resistances\nAttacks with
- * this Weapon Penetrate 10% Elemental Resistances (Tier 2)" — so a single PoB
- * line can never match one. The same line does exist as an explicit stat, and
- * taking it silently turned a crucible passive into a requirement for an
- * explicit mod the item does not have, which finds nothing. Reporting the line
- * as unsearchable is the honest result; the UI already says so.
+ * Crucible passives are not indexed at all (see buildIndex), so a crucible mod
+ * never finds its own family and would otherwise take whatever explicit stat
+ * shares its wording — turning the passive into a requirement for an explicit
+ * mod the item does not have, which finds nothing. Reporting the line as
+ * unsearchable is the honest result; the UI already renders it as "no stat".
  */
 const NO_EXPLICIT_FALLBACK = new Set<ModType>(["crucible"]);
+
+/**
+ * Trailing qualifiers that name the item class a stat applies to rather than
+ * distinguishing it from another stat. PoB never writes them, so the bare text
+ * is indexed too — otherwise a shield's "+6% Chance to Block" cannot reach
+ * "+#% Chance to Block (Shields)".
+ *
+ * Deliberately not "(Maps)", "(Legacy)" or "(Tier N)": those separate genuinely
+ * different stats, and stripping them would merge stats that must stay apart.
+ */
+const ITEM_CLASS_QUALIFIERS = ["(local)", "(shields)", "(staves)"];
 
 const indexCache: Partial<Record<GameId, StatIndex>> = {};
 
@@ -90,17 +98,32 @@ function buildIndex(entries: StatEntry[]): StatIndex {
   };
 
   for (const entry of entries) {
-    if (entry.type === "pseudo") continue; // pseudos are applied deliberately, not by text match
+    // Pseudos are applied deliberately, not by text match.
+    if (entry.type === "pseudo") continue;
+    /**
+     * Crucible passives are whole multi-line entries with literal rolls and a
+     * "(Tier N)" suffix, so no PoB line can match one — but indexing their
+     * first lines put them in the candidate pool for 833 ordinary mod texts,
+     * and for those the crucible entry was the *only* candidate. A shield's
+     * "+6% Chance to Block" resolved to crucible.mod_3453 ("+8% Chance to
+     * Block\nCannot Block Spell Damage (Tier 1)") and the search found
+     * nothing. They are excluded here rather than filtered at match time, so
+     * they cannot shadow a real stat by any route.
+     */
+    if (entry.type === "crucible") continue;
 
     // Some stat texts are multi-line (e.g. "…your tree\nPassage" carries the
     // passive node name). Index the full text and the first line.
     const keys = new Set<string>([normalizeStatText(entry.text)]);
     const firstLine = entry.text.split("\n")[0];
     keys.add(normalizeStatText(firstLine));
-    // Local mods are suffixed "(Local)" on the trade side but not in PoB item
-    // text ("98% increased Armour and Evasion") — index the bare text too.
+    // Item-class qualifiers are on the trade side only ("98% increased Armour
+    // and Evasion (Local)", "+#% Chance to Block (Shields)") — index the bare
+    // text so PoB's unqualified wording reaches them.
     for (const key of [...keys]) {
-      if (key.endsWith(" (local)")) keys.add(key.slice(0, -" (local)".length));
+      for (const qualifier of ITEM_CLASS_QUALIFIERS) {
+        if (key.endsWith(` ${qualifier}`)) keys.add(key.slice(0, -(qualifier.length + 1)));
+      }
     }
     for (const key of keys) add(key, { entry });
 
