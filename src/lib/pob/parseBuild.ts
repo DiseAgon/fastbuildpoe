@@ -58,6 +58,15 @@ function parseGems(root: XmlNode): GemGroup[] {
 
   const groups: GemGroup[] = [];
   for (const skill of skillNodes) {
+    /**
+     * PoB lists skills an item or minion *grants* as skill groups too, tagged
+     * with a `source` ("Item:28:Severed in Sleep" grants Envy). They are not
+     * gems anyone can buy: no poe.ninja price, no artwork, and a trade link for
+     * them searches for a base type that does not exist. Skip them — the item
+     * granting the skill is already priced in its own slot.
+     */
+    if (String(skill["@_source"] ?? "").trim() !== "") continue;
+
     const seen = new Set<string>();
     const gems: ParsedItem[] = [];
     for (const gem of asArray(skill.Gem as XmlNode | XmlNode[] | undefined)) {

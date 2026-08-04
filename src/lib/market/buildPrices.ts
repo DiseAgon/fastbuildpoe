@@ -121,18 +121,22 @@ export async function priceBuildItems(
     };
   }
 
-  const [divinePrice, gemLines, baseLines, clusterLines, ...uniqueSets] = await Promise.all([
-    getDivinePrice(league),
-    stashLines(league, "SkillGem"),
-    stashLines(league, "BaseType"),
-    // Cluster jewels are absent from BaseType and have their own category.
-    stashLines(league, "ClusterJewel"),
-    ...UNIQUE_TYPES.map((t) => stashLines(league, t)),
-  ]);
+  const [divinePrice, gemLines, baseLines, clusterLines, flaskLines, ...uniqueSets] =
+    await Promise.all([
+      getDivinePrice(league),
+      stashLines(league, "SkillGem"),
+      stashLines(league, "BaseType"),
+      // Cluster jewels are absent from BaseType and have their own category.
+      stashLines(league, "ClusterJewel"),
+      // So are flasks: BaseType carries 19k lines and not one of them is a
+      // flask, which left every magic flask in a build with no artwork at all.
+      stashLines(league, "Flask"),
+      ...UNIQUE_TYPES.map((t) => stashLines(league, t)),
+    ]);
 
   const uniques = indexUniques(uniqueSets);
   const gemTiers = indexGemTiers(gemLines);
-  const baseIcons = indexBaseIcons([baseLines, clusterLines]);
+  const baseIcons = indexBaseIcons([baseLines, clusterLines, flaskLines]);
 
   if (uniques.size === 0 && gemTiers.size === 0) {
     return {
