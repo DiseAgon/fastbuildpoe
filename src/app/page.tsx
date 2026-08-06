@@ -15,8 +15,10 @@ import { ExportPobButton } from "@/components/build/ExportPobButton";
 import { GAME_IDS, GAMES, type GameId } from "@/lib/game/registry";
 import type { ItemSetView, ParsedBuild, ParsedItem } from "@/types/item";
 import type { TradeMeta } from "@/lib/trade/meta";
-import { decodeShare, type SharePayload } from "@/lib/share";
+import { decodeEmbeddedPrices, decodeShare, type SharePayload } from "@/lib/share";
 import { clearDraft, draftHasWork, loadDraft, saveDraft } from "@/lib/draft";
+import { itemKey } from "@/lib/build/itemKey";
+import { sumPrices } from "@/lib/build/price";
 import { useBuildPrices } from "@/hooks/useBuildPrices";
 import { SavedPanel } from "@/components/SavedPanel";
 import { FeedbackButton } from "@/components/FeedbackButton";
@@ -31,8 +33,19 @@ import {
 interface ImportResponse {
   success: boolean;
   data: ParsedBuild | null;
+  /** Encoded prices found in the build's Notes, for pastes made by "Share". */
+  share?: string | null;
   error: string | null;
 }
+
+/** What an import produced: the build, plus any prices the paste carried. */
+interface ImportResult {
+  build: ParsedBuild;
+  share: string | null;
+}
+
+/** Paste id from a `#p=<id>` share link. */
+const SHARED_PASTE_HASH = /^#p=([A-Za-z0-9_-]+)$/;
 
 type ByGame<T> = Record<GameId, T>;
 const emptyByGame = <T,>(value: T): ByGame<T> => ({ poe1: value, poe2: value });
@@ -45,6 +58,25 @@ function allItemsOf(view: ItemSetView): ParsedItem[] {
     ...view.flasks,
     ...view.charms,
   ];
+}
+
+/**
+ * Swap in one game's prices, dropping whatever that game held before.
+ *
+ * Loading a saved build has to *replace* its prices, not merge them: merging
+ * left the previous build's numbers sitting on any item the new one doesn't
+ * carry, so the total — and the next save — included prices for items that were
+ * no longer on screen. The other game's prices are untouched.
+ */
+function withGamePrices(
+  prev: Record<string, string>,
+  game: GameId,
+  next: Record<string, string>,
+): Record<string, string> {
+  const kept = Object.fromEntries(
+    Object.entries(prev).filter(([key]) => !key.startsWith(`${game}|`)),
+  );
+  return { ...kept, ...next };
 }
 
 /** Grand total for the current view: live prices, with manual overrides winning. */
@@ -91,6 +123,9 @@ export default function Home() {
   const [sessions, setSessions] = useState<SavedSession[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
   const [gearView, setGearView] = useState<"doll" | "list">("doll");
+  /** Flashes "Saved ✓" — re-saving a build leaves the list count unchanged, so
+   *  without it a successful save is indistinguishable from a dead button. */
+  const [justSaved, setJustSaved] = useState(false);
   /** Blocks autosave until the initial restore has run, so an empty first
    *  render can't overwrite a good draft. */
   const [restored, setRestored] = useState(false);
@@ -151,7 +186,7 @@ export default function Home() {
     return { gear, jewels, gems, flasks, charms, totalGems };
   }, [view]);
 
-  const importInput = useCallback(async (input: string): Promise<ParsedBuild | null> => {
+  const importInput = useCallback(async (input: string): Promise<ImportResult | null> => {
     setLoading(true);
     setError(null);
     try {
@@ -170,7 +205,7 @@ export default function Home() {
       setActiveSetIds((prev) => ({ ...prev, [imported.game]: imported.activeItemSetId }));
       setInputs((prev) => ({ ...prev, [imported.game]: input }));
       setGame(imported.game);
-      return imported;
+      return { build: imported, share: json.share ?? null };
     } catch {
       setError("Could not reach the server.");
       return null;
@@ -179,8 +214,28 @@ export default function Home() {
     }
   }, []);
 
+  /**
+   * Apply the prices a shared paste carried in its Notes. Callers opt in: a
+   * `#s=` link and the autosaved draft carry their own prices and must not be
+   * overruled by whatever happens to be written in the paste.
+   */
+  const applyEmbedded = useCallback(async (encoded: string | null) => {
+    if (!encoded) return;
+    try {
+      const embedded = await decodeEmbeddedPrices(encoded);
+      setLeagues((prev) => ({ ...prev, [embedded.game]: embedded.league }));
+      setActiveSetIds((prev) => ({ ...prev, [embedded.game]: embedded.setId }));
+      setPrices((prev) => withGamePrices(prev, embedded.game, embedded.prices));
+      setCustomLeague(false);
+    } catch {
+      /* not one of our pastes, or written by a newer version — keep the build */
+    }
+  }, []);
+
   function handleImport(input: string) {
-    void importInput(input);
+    // Pasting a shared link should bring its prices along, the same as opening
+    // that link directly — the paste is the share.
+    void importInput(input).then((r) => void applyEmbedded(r?.share ?? null));
   }
 
   // Apply a parsed build that didn't come from a pasted input (e.g. character import).
@@ -193,75 +248,141 @@ export default function Home() {
 
   const restoreFromPayload = useCallback(
     (payload: SharePayload) => {
-      setPrices((prev) => ({ ...prev, ...payload.prices }));
+      setPrices((prev) => withGamePrices(prev, payload.game, payload.prices));
       setLeagues((prev) => ({ ...prev, [payload.game]: payload.league }));
+      // Seed the input and set id up front rather than waiting on the re-import:
+      // the import is a network round-trip, and until it lands the autosave (and
+      // the Save button) would otherwise see a build with no input at all.
+      setInputs((prev) => ({ ...prev, [payload.game]: payload.input }));
+      setActiveSetIds((prev) => ({ ...prev, [payload.game]: payload.setId }));
       setGame(payload.game);
       setCustomLeague(false);
       setPanelOpen(false);
+      setError(null);
       if (payload.input) {
-        void importInput(payload.input).then((b) => {
-          if (b) setActiveSetIds((prev) => ({ ...prev, [b.game]: payload.setId }));
+        void importInput(payload.input).then((r) => {
+          if (r) setActiveSetIds((prev) => ({ ...prev, [r.build.game]: payload.setId }));
         });
       }
     },
     [importInput],
   );
 
+  /** Open a `#p=<id>` share link: the paste is both the build and the prices. */
+  const restoreFromPaste = useCallback(
+    async (pasteId: string) => {
+      const result = await importInput(`https://pobb.in/${pasteId}`);
+      await applyEmbedded(result?.share ?? null);
+    },
+    [importInput, applyEmbedded],
+  );
+
   // Restore once on mount. A share link in the hash is an explicit request and
   // wins over the autosaved draft; otherwise pick the draft back up so a
   // refresh mid-pricing doesn't lose anything.
+  //
+  // `restored` is only flipped once the restore has fully landed — including
+  // the async re-import — because it is what unblocks the autosave, and an
+  // autosave that fires mid-restore writes a half-built state over the draft.
   useEffect(() => {
     if (typeof window === "undefined") return;
+    let cancelled = false;
+    const done = () => {
+      if (!cancelled) setRestored(true);
+    };
+
+    const pasteId = window.location.hash.match(SHARED_PASTE_HASH)?.[1];
+    if (pasteId) {
+      void restoreFromPaste(pasteId).catch(() => {}).finally(done);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     if (window.location.hash.startsWith("#s=")) {
-      try {
-        restoreFromPayload(decodeShare(window.location.hash.slice(3)));
-      } catch {
-        /* ignore bad payload */
-      }
-      setRestored(true);
+      void decodeShare(window.location.hash.slice(3))
+        .then((payload) => {
+          if (!cancelled) restoreFromPayload(payload);
+        })
+        .catch(() => {
+          /* ignore bad payload */
+        })
+        .finally(done);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const draft = loadDraft();
+    if (!draft || !draftHasWork(draft)) {
+      done();
       return;
     }
-    const draft = loadDraft();
-    if (draft && draftHasWork(draft)) {
-      setPrices(draft.prices);
-      setLeagues((prev) => ({ ...prev, ...draft.leagues }));
-      setInputs((prev) => ({ ...prev, ...draft.inputs }));
-      setGame(draft.game);
-      const input = draft.inputs[draft.game];
-      if (input) {
-        void importInput(input).then((b) => {
-          const setId = draft.setIds[b?.game ?? draft.game];
-          if (b && setId) setActiveSetIds((prev) => ({ ...prev, [b.game]: setId }));
-        });
-      }
+    setPrices(draft.prices);
+    setLeagues((prev) => ({ ...prev, ...draft.leagues }));
+    setInputs((prev) => ({ ...prev, ...draft.inputs }));
+    setActiveSetIds((prev) => ({ ...prev, ...draft.setIds }));
+    setGame(draft.game);
+    const input = draft.inputs[draft.game];
+    if (!input) {
+      done();
+      return;
     }
-    setRestored(true);
-  }, [restoreFromPayload, importInput]);
+    void importInput(input)
+      .then((r) => {
+        const setId = draft.setIds[r?.build.game ?? draft.game];
+        if (r && setId) setActiveSetIds((prev) => ({ ...prev, [r.build.game]: setId }));
+      })
+      .finally(done);
+    return () => {
+      cancelled = true;
+    };
+  }, [restoreFromPayload, restoreFromPaste, importInput]);
+
+  /**
+   * The item set actually on screen. `activeSetIds` can name a set this build
+   * doesn't have (a share link for a version that was since renamed), in which
+   * case the view falls back to the first one — and saving the id we asked for
+   * rather than the one being shown is how a save came back as a different
+   * version than the user had open.
+   */
+  const setIdsForSave = useMemo(
+    () => (view ? { ...activeSetIds, [game]: view.id } : activeSetIds),
+    [activeSetIds, game, view],
+  );
 
   // Autosave the working state (debounced — prices change per keystroke).
   useEffect(() => {
     if (!restored) return;
     const timer = setTimeout(() => {
-      saveDraft({ game, inputs, setIds: activeSetIds, leagues, prices });
+      saveDraft({ game, inputs, setIds: setIdsForSave, leagues, prices });
     }, 600);
     return () => clearTimeout(timer);
-  }, [restored, game, inputs, activeSetIds, leagues, prices]);
+  }, [restored, game, inputs, setIdsForSave, leagues, prices]);
 
   function saveCurrent() {
     const input = inputs[game];
-    if (!input || !build) return;
+    if (!input || !build || !view) return;
     const gamePrices = Object.fromEntries(
       Object.entries(prices).filter(([k, v]) => k.startsWith(`${game}|`) && v !== ""),
     );
-    const total = Object.values(gamePrices).reduce((t, v) => {
-      const n = Number.parseFloat(v);
-      return t + (Number.isFinite(n) ? n : 0);
-    }, 0);
-    const payload: SharePayload = { v: 1, game, input, setId: activeSetId, league, prices: gamePrices };
-    const label = `${build.className ?? "Build"}${build.ascendancy ? ` · ${build.ascendancy}` : ""}`;
-    setSessions(
-      addSession({ id: `${game}|${input}`, savedAt: Date.now(), label, game, total, payload }),
+    // Record the total the page is showing — live quotes included, manual
+    // overrides winning — not just the numbers that were typed by hand.
+    const total = sumPrices(
+      prices,
+      quotes,
+      allItemsOf(view).map((item) => itemKey(game, item)),
     );
+    const payload: SharePayload = { v: 1, game, input, setId: view.id, league, prices: gamePrices };
+    const version = build.itemSets.length > 1 ? ` · ${view.title}` : "";
+    const label = `${build.className ?? "Build"}${build.ascendancy ? ` · ${build.ascendancy}` : ""}${version}`;
+    // Keyed by version too, so pricing a build's "Budget" and "Endgame" sets
+    // gives two saves instead of the second silently replacing the first.
+    setSessions(
+      addSession({ id: `${game}|${input}|${view.id}`, savedAt: Date.now(), label, game, total, payload }),
+    );
+    setJustSaved(true);
+    window.setTimeout(() => setJustSaved(false), 1800);
   }
 
   function switchGame(id: GameId) {
@@ -431,24 +552,36 @@ export default function Home() {
                     <ShareButton
                       game={game}
                       input={inputs[game]}
-                      setId={view.id}
+                      view={view}
                       league={league}
                       prices={prices}
+                      title={`${build.className ?? "Build"} — FastBuildPOE prices`}
                     />
                     <ExportPobButton
                       view={view}
                       input={inputs[game]}
                       title={`${build.className ?? "Build"} — FastBuildPOE prices`}
                     />
-                    {inputs[game] && (
+                    {inputs[game] ? (
                       <button
                         type="button"
                         onClick={saveCurrent}
-                        className="rounded-[var(--radius)] border border-border bg-surface px-3 py-1 text-sm text-muted transition-colors hover:border-accent/50 hover:text-accent"
+                        className={`rounded-[var(--radius)] border bg-surface px-3 py-1 text-sm transition-colors ${
+                          justSaved
+                            ? "border-accent/60 text-accent"
+                            : "border-border text-muted hover:border-accent/50 hover:text-accent"
+                        }`}
                         title="Save this build + prices to your browser"
                       >
-                        Save
+                        {justSaved ? "Saved ✓" : "Save"}
                       </button>
+                    ) : (
+                      <span
+                        className="text-xs text-muted"
+                        title="Saving re-imports the build from its pobb.in link or PoB code. A character loaded over the PoE API has neither — paste its PoB code to save or share it."
+                      >
+                        Save needs a link
+                      </span>
                     )}
                     <span
                       className="text-xs text-muted"

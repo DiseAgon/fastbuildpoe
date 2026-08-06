@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { clientKey, rateLimit } from "@/lib/rateLimit";
 import { resolvePobInput } from "@/lib/pob/fetchPob";
 import { decodePobCode } from "@/lib/pob/decode";
 import { encodePobCode, injectNotes } from "@/lib/pob/encode";
@@ -14,6 +15,15 @@ const Body = z.object({
 });
 
 export async function POST(request: Request) {
+  // Every call uploads a paste to pobb.in, and "Share" now goes through here
+  // too — cap it so a client retry loop can't burn the shared egress IP.
+  if (!rateLimit(`export:${clientKey(request)}`, 15)) {
+    return NextResponse.json(
+      { success: false, data: null, error: "Too many exports — wait a minute and try again." },
+      { status: 429 },
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();

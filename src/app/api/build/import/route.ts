@@ -4,6 +4,8 @@ import { clientKey, rateLimit } from "@/lib/rateLimit";
 import { resolvePobInput } from "@/lib/pob/fetchPob";
 import { decodePobCode } from "@/lib/pob/decode";
 import { parseBuildXml } from "@/lib/pob/parseBuild";
+import { extractNotes } from "@/lib/pob/encode";
+import { extractPriceData } from "@/lib/pob/priceNotes";
 import type { ParsedBuild } from "@/types/item";
 
 // zlib + outbound fetch require the Node.js runtime (not Edge).
@@ -16,6 +18,12 @@ const RequestBody = z.object({
 interface ApiResponse {
   success: boolean;
   data: ParsedBuild | null;
+  /**
+   * Encoded prices carried in the build's Notes, when this paste is one of our
+   * share links. Returned alongside the build so opening a shared link is a
+   * single round trip — the URL only holds the paste id.
+   */
+  share?: string | null;
   error: string | null;
 }
 
@@ -49,7 +57,8 @@ export async function POST(request: Request): Promise<NextResponse<ApiResponse>>
     const code = await resolvePobInput(result.data.input);
     const xml = decodePobCode(code);
     const build = parseBuildXml(xml);
-    return NextResponse.json({ success: true, data: build, error: null });
+    const share = extractPriceData(extractNotes(xml));
+    return NextResponse.json({ success: true, data: build, share, error: null });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to import build.";

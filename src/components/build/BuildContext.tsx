@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, type ReactNode } from "react";
 import type { GameId } from "@/lib/game/registry";
 import type { ParsedItem } from "@/types/item";
 import { itemKey } from "@/lib/build/itemKey";
+import { effectivePrice } from "@/lib/build/price";
 import type { ItemQuote } from "@/lib/market/buildPrices";
 
 interface BuildContextValue {
@@ -68,11 +69,7 @@ export function BuildProvider({
 
   /** Effective numeric price: override wins, else the live quote. */
   const effective = useCallback(
-    (key: string): number => {
-      const override = Number.parseFloat(prices[key] || "");
-      if (Number.isFinite(override)) return override;
-      return quotes[key]?.divine ?? 0;
-    },
+    (key: string): number => effectivePrice(prices, quotes, key),
     [prices, quotes],
   );
 

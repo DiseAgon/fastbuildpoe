@@ -6,7 +6,7 @@ import type { SharePayload } from "@/lib/share";
  * user keep several priced builds and switch between them. No backend.
  */
 export interface SavedSession {
-  /** Stable id (game + input) so re-saving the same build updates it. */
+  /** Stable id (game + input + item set) so re-saving the same build updates it. */
   id: string;
   savedAt: number;
   label: string;
@@ -37,8 +37,25 @@ function persist(sessions: SavedSession[]): void {
   }
 }
 
+/**
+ * What makes two saves "the same build": the game, the build it re-imports
+ * from, and the item set being priced. Derived from the payload rather than
+ * compared as `id` strings so entries written under an older id scheme (which
+ * did not include the item set) are still recognised and replaced instead of
+ * leaving a stale duplicate behind.
+ */
+function identityOf(session: SavedSession): string {
+  // Optional access: localStorage is user-writable, so a malformed entry must
+  // not take the whole saved list down on the next save.
+  return `${session.game}|${session.payload?.input}|${session.payload?.setId}`;
+}
+
 export function addSession(session: SavedSession): SavedSession[] {
-  const next = [session, ...loadSessions().filter((s) => s.id !== session.id)].slice(0, MAX);
+  const identity = identityOf(session);
+  const previous = loadSessions().filter(
+    (s) => s.id !== session.id && identityOf(s) !== identity,
+  );
+  const next = [session, ...previous].slice(0, MAX);
   persist(next);
   return next;
 }
