@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
+import { FeedbackButton } from "@/components/FeedbackButton";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -51,6 +52,10 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen antialiased">
         {children}
+        {/* Mounted here rather than per page: the market pages had no way to
+            report anything, and on the build page the only one was a footer
+            link below a whole priced build. */}
+        <FeedbackButton variant="floating" />
         <Analytics />
       </body>
     </html>
