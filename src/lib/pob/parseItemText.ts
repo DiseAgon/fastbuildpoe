@@ -24,8 +24,17 @@ import { categorize } from "./categorize";
 
 const NUMBER = /[+-]?\d+(?:\.\d+)?/g;
 const ANNOTATION = /\{[^}]*\}/g;
-/** PoB unrolled range: `(10-25)% increased …`, `+(16-24) to …`, `-(20-10)% to …`. */
-const RANGE_SPAN = /(-?)\((\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\)/g;
+/**
+ * PoB unrolled range: `(10-25)% increased …`, `+(16-24) to …`, `-(20-10)% to …`.
+ *
+ * Either bound may itself be negative — a span that straddles zero is how PoB
+ * writes the swingy uniques (`(-35-35)% reduced Duration` on Progenesis,
+ * `+(-25-50)% to Fire Resistance` on Ventor's Gamble). Requiring a digit right
+ * after `(` left those spans unresolved, so the mod rendered as the raw
+ * `(-35-35)%` text and its template came out `(##)%`, which matches no trade
+ * stat — the item's headline mod silently became unsearchable.
+ */
+const RANGE_SPAN = /(-?)\((-?\d+(?:\.\d+)?)-(-?\d+(?:\.\d+)?)\)/g;
 
 /**
  * Resolve PoB `(min-max)` spans into the concrete roll the build uses.
