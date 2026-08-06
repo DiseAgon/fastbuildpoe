@@ -46,7 +46,7 @@ function GearTradeSection({
 }
 
 export function ItemCard({ item, number }: { item: ParsedItem; number: number }) {
-  const { keyFor, getQuote } = useBuild();
+  const { keyFor, getQuote, game } = useBuild();
   const priceKey = keyFor(item);
   const quote = getQuote(priceKey);
   // Sanitize for use as a DOM id (item keys contain spaces, "|", "%", etc.).
@@ -55,6 +55,15 @@ export function ItemCard({ item, number }: { item: ParsedItem; number: number })
   const displayName = item.name === "New Item" ? item.baseType : item.name;
   const showBase = item.baseType && item.baseType !== displayName;
   const isGem = item.category === "gem";
+  /**
+   * PoE 2 gems are carved from Uncut gems rather than bought by name, so a
+   * per-gem trade search is not a thing you can act on. It was also usually
+   * wrong: nothing in the gem data distinguishes a skill from a support (905
+   * entries, and only the Uncut bases even contain the word), so supports were
+   * being searched as skills. The gem is shown, with its level and quality, and
+   * the manual price box stays for anyone costing the uncut gem.
+   */
+  const isPoe2Gem = isGem && game === "poe2";
 
   return (
     <article
@@ -111,7 +120,13 @@ export function ItemCard({ item, number }: { item: ParsedItem; number: number })
           )}
           <div className="mt-auto border-t border-border/60">
             <PriceField itemKey={priceKey} fieldId={priceFieldId} />
-            <GemTradeControls item={item} />
+            {isPoe2Gem ? (
+              <p className="px-4 pb-3 text-xs text-muted">
+                Uncut in PoE 2 — no per-gem trade search.
+              </p>
+            ) : (
+              <GemTradeControls item={item} />
+            )}
           </div>
         </>
       ) : (
