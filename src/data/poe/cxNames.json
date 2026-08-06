@@ -1144,5 +1144,9 @@
  "Metadata/Items/Currency/CurrencyGraftCorrupt": "Unstable Implant",
  "Metadata/Items/Scarabs/ScarabHarbingerNew1": "Harbinger Scarab",
  "Metadata/Items/Delve/DelveStackableSocketableCurrencyUpgrade4": "Prime Alchemical Resonator",
- "Metadata/Items/Deepwater/DeepwaterEldritch": "Ukatoa's Ducat"
+ "Metadata/Items/Deepwater/DeepwaterEldritch": "Ukatoa's Ducat",
+ "Metadata/Items/Currency/KalguuranRune6": "Bounty Rune",
+ "Metadata/Items/Currency/KalguuranRune10": "Power Rune",
+ "Metadata/Items/Currency/KalguuranRune5": "River Rune",
+ "Metadata/Items/Currency/KalguuranRune4": "War Rune"
 }
