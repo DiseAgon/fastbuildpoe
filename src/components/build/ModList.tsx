@@ -11,6 +11,10 @@ import type { TradeSelectionState } from "@/hooks/useTradeSelection";
  * on the mods themselves rather than behind the advanced panel. A mod with no
  * trade stat (PoB text the stat index can't match) shows a disabled box and says
  * so — silently rendering it as unchecked would look like a choice we made.
+ *
+ * "No stat" is a verdict, so it waits for one. Until the first response lands
+ * there are no filters to line up against and every row qualified, which made
+ * the whole list flash a definite negative while it was still loading.
  */
 export function ModList({
   item,
@@ -19,8 +23,10 @@ export function ModList({
   item: ParsedItem;
   trade: TradeSelectionState;
 }) {
-  const { sel, toggleFilter, filterIndexByMod } = trade;
+  const { sel, toggleFilter, filterIndexByMod, data } = trade;
   const ready = sel.filters.length > 0;
+  /** The server has answered, so an unmatched mod really has no trade stat. */
+  const answered = data !== null;
 
   if (item.mods.length === 0) {
     return <p className="flex-1 px-4 py-3 text-sm text-muted">No mods parsed.</p>;
@@ -47,7 +53,9 @@ export function ModList({
                   ? included
                     ? "Included in the trade search — uncheck to ignore"
                     : "Ignored — check to require it"
-                  : "No trade stat matches this line, so it can't be searched"
+                  : answered
+                    ? "No trade stat matches this line, so it can't be searched"
+                    : "Building the trade search…"
               }
             >
               <input
@@ -77,7 +85,7 @@ export function ModList({
               {searchable && included && filter.group === "not" && (
                 <span className="ml-auto shrink-0 text-[10px] uppercase text-danger">excl</span>
               )}
-              {!searchable && (
+              {!searchable && answered && (
                 <span className="ml-auto shrink-0 text-[10px] uppercase text-muted/50">
                   no stat
                 </span>
