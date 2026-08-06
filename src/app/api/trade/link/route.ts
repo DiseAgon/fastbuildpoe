@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isGameId } from "@/lib/game/registry";
-import { buildItemQuery, type BudgetMode } from "@/lib/trade/queryBuilder";
+import { buildItemQuery } from "@/lib/trade/queryBuilder";
+import { clampRollPercent, DEFAULT_ROLL_PERCENT } from "@/lib/trade/roll";
 import { resolveLeague } from "@/lib/trade/league";
 import { buildTradeUrl } from "@/lib/trade/tradeLink";
 import type { ParsedItem } from "@/types/item";
@@ -81,7 +82,8 @@ const PseudoSchema = z.object({
 
 const RequestBody = z.object({
   game: z.string().refine(isGameId, "Unknown game."),
-  mode: z.enum(["minmax", "asis", "budget"]),
+  /** Minimum roll to match, as a percentage of the item's own roll. */
+  roll: z.number().min(0).max(100).optional(),
   league: z.string().optional(),
   item: ItemSchema,
   bandMins: z.record(BandSchema, z.number()).optional(),
@@ -118,7 +120,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const { game, mode } = parsed.data;
+  const { game } = parsed.data;
+  const roll = clampRollPercent(parsed.data.roll ?? DEFAULT_ROLL_PERCENT);
   // The validated item satisfies the fields buildItemQuery reads.
   const item = parsed.data.item as ParsedItem;
 
@@ -136,7 +139,7 @@ export async function POST(request: Request) {
       parsed.data.league
         ? Promise.resolve(parsed.data.league)
         : resolveLeague(game as Parameters<typeof resolveLeague>[0]),
-      buildItemQuery(game as Parameters<typeof buildItemQuery>[0], item, mode as BudgetMode, overrides),
+      buildItemQuery(game as Parameters<typeof buildItemQuery>[0], item, roll, overrides),
     ]);
     const league = resolvedLeague;
     const url = buildTradeUrl(game as Parameters<typeof buildTradeUrl>[0], league, built.query);

@@ -32,7 +32,6 @@ export function GemTradeControls({ item }: { item: ParsedItem }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           game,
-          mode: "asis",
           league: league ?? undefined,
           item,
           buyout,

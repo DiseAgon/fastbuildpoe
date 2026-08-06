@@ -4,13 +4,13 @@ Import a Path of Exile build from **pobb.in** (or a raw Path of Building export)
 get a tunable **trade-search link** for every item — built to find *similar* items, not
 exact copies. PoE 1 first, PoE 2 next.
 
-See [`SPEC.md`](./SPEC.md) for the full design (matching strategy, budget axis,
+See [`SPEC.md`](./SPEC.md) for the full design (matching strategy, roll axis,
 per-category rules, data sources).
 
 ## Status
 
 **Phase 1–2 scaffold:** build import + decode + item/mod parsing + basic themed UI.
-Trade-link generation, pseudo/count/weight groups, budget axis, and price fetch are
+Trade-link generation, pseudo/count/weight groups, roll axis, and price fetch are
 upcoming phases per the SPEC.
 
 ## Stack

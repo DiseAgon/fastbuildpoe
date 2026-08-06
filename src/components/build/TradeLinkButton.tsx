@@ -3,13 +3,19 @@
 import { useState } from "react";
 import type { ParsedItem } from "@/types/item";
 import type { FilterGroup } from "@/lib/trade/queryBuilder";
-import type { BudgetMode, TradeSelectionState } from "@/hooks/useTradeSelection";
+import type { TradeSelectionState } from "@/hooks/useTradeSelection";
+import {
+  MAX_ROLL_PERCENT,
+  MIN_ROLL_PERCENT,
+  ROLL_PERCENT_STEP,
+} from "@/lib/trade/roll";
 
-const MODES: { id: BudgetMode; label: string; hint: string }[] = [
-  { id: "minmax", label: "Min-max", hint: "All mods required, best rolls" },
-  { id: "asis", label: "As-is", hint: "Match most mods (similar item)" },
-  { id: "budget", label: "Budget", hint: "Match fewer mods, cheaper" },
-];
+/** Plain-language read-out for where the slider is sitting. */
+function rollHint(roll: number): string {
+  if (roll >= 100) return "as good as this item";
+  if (roll <= 0) return "any roll";
+  return `${roll}% of this item's rolls`;
+}
 
 const GROUPS: { id: FilterGroup; label: string; hint: string }[] = [
   { id: "and", label: "Must", hint: "Required (AND)" },
@@ -33,7 +39,7 @@ export function TradeLinkButton({
   item: ParsedItem;
   trade: TradeSelectionState;
 }) {
-  const { mode, setMode, sel, update, data, loading, error } = trade;
+  const { roll, setRoll, sel, update, data, loading, error } = trade;
   const [showPanel, setShowPanel] = useState(false);
 
   /**
@@ -47,22 +53,26 @@ export function TradeLinkButton({
   return (
     <div className="flex flex-col gap-2 px-4 pb-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1" role="group" aria-label="Search strictness">
-          {MODES.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => setMode(m.id)}
-              aria-pressed={mode === m.id}
-              title={m.hint}
-              className={`rounded-[6px] px-2.5 py-1 text-xs transition-colors duration-[var(--duration-fast)] ${
-                mode === m.id ? "bg-accent/15 text-accent" : "text-muted hover:text-text"
-              }`}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
+        <label
+          className="flex min-w-[13rem] flex-1 items-center gap-2 text-xs text-muted"
+          title="How good a match has to be. Each mod's minimum is set to this share of the roll this item has — 100% asks for an item at least this good, 0% drops the roll floor and searches on the mods alone."
+        >
+          <span className="shrink-0 text-text">Rolls</span>
+          <input
+            type="range"
+            min={MIN_ROLL_PERCENT}
+            max={MAX_ROLL_PERCENT}
+            step={ROLL_PERCENT_STEP}
+            value={roll}
+            onChange={(e) => setRoll(Number(e.target.value))}
+            aria-label="Minimum roll, as a percentage of this item's rolls"
+            aria-valuetext={`${roll} percent — ${rollHint(roll)}`}
+            className="h-1 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-border accent-[color:var(--color-accent)]"
+          />
+          <span className="w-9 shrink-0 text-right tabular-nums font-medium text-accent">
+            {roll}%
+          </span>
+        </label>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-1.5 text-xs text-muted" title="Only listings with a fixed buyout price">
             <input

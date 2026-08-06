@@ -9,13 +9,21 @@ import { computeWeaponDps } from "./weaponDps";
 import { resolveGemType } from "./gemTypes";
 
 /**
- * Budget axis (see SPEC §7) — seeds sensible defaults the user can then tweak
- * per mod in the UI.
- *  - minmax: every mod Required (AND) at the item's rolls.
- *  - asis:   match MOST mods (count group) at ~70% rolls (default).
- *  - budget: match fewer mods at ~50% rolls, uncorrupted.
+ * Roll axis — seeds each filter's minimum at this share of the item's own roll
+ * (see `lib/trade/roll.ts`). Everything else about the search is chosen per mod
+ * in the UI: Must / Any / Exclude per line, and a threshold per optional pool.
  */
-export type BudgetMode = "minmax" | "asis" | "budget";
+export type RollPercent = number;
+
+/**
+ * Share of an optional pool that must match by default.
+ *
+ * Not on the slider: the slider answers "how good a roll", this answers "how
+ * many mods", and the per-pool thresholds in the Advanced panel already expose
+ * it directly. 0.6 is the value the old default preset used, so an untouched
+ * search returns what it always did.
+ */
+const BAND_FRACTION = 0.6;
 
 /** Per-mod group assignment, mapping to the trade API stat group types. */
 export type FilterGroup = "and" | "count" | "not" | "off";
@@ -54,19 +62,9 @@ export interface BandInfo {
   min: number;
 }
 
-interface ModeConfig {
-  factor: number;
-  /** Default group for matched mods. */
-  group: Extract<FilterGroup, "and" | "count">;
-  /** When using a count group, fraction of mods that must match. */
-  fraction: number;
-}
-
-const MODE_CONFIG: Record<BudgetMode, ModeConfig> = {
-  minmax: { factor: 1.0, group: "and", fraction: 1 },
-  asis: { factor: 0.7, group: "count", fraction: 0.6 },
-  budget: { factor: 0.5, group: "count", fraction: 0.4 },
-};
+/** The slider's percentage as the multiplier applied to each roll. */
+const factorOf = (rollPercent: RollPercent): number =>
+  Math.min(1, Math.max(0, rollPercent / 100));
 
 /** One editable filter row, surfaced to the UI so the user can adjust it. */
 export interface EditableFilter {
@@ -191,8 +189,10 @@ export interface BuiltQuery {
   strategy: string;
 }
 
+/** A roll floor at `factor` of the item's roll; null when there is no floor. */
 function bandedMin(value: number | undefined, factor: number): number | null {
-  if (value === undefined || value <= 0) return null;
+  // factor 0 is the slider at its left end: search the mod, ignore the roll.
+  if (value === undefined || value <= 0 || factor <= 0) return null;
   return Math.max(1, Math.floor(value * factor));
 }
 
@@ -247,9 +247,8 @@ function bandOf(mod: { type: string; affix?: "prefix" | "suffix" }): StatBand {
 async function autoFilters(
   game: GameId,
   item: ParsedItem,
-  mode: BudgetMode,
+  factor: number,
 ): Promise<{ filters: EditableFilter[]; unmatched: number }> {
-  const cfg = MODE_CONFIG[mode];
   const index = await getStatIndex(game);
   const families = resolveFamilies(index);
   /**
@@ -295,16 +294,17 @@ async function autoFilters(
     // "reduced X" matches the "increased X" stat with negative values on the
     // trade side, so "at least this much reduction" is a max, not a min.
     const negatedMax =
-      hit.negated && roll !== undefined && roll > 0
-        ? -Math.max(1, Math.floor(roll * cfg.factor))
+      hit.negated && roll !== undefined && roll > 0 && factor > 0
+        ? -Math.max(1, Math.floor(roll * factor))
         : null;
     filters.push({
       statId: hit.entry.id,
       text: mod.text,
       currentRoll: isOption ? null : (roll ?? null),
-      min: isOption ? null : exact ? (roll ?? null) : hit.negated ? null : bandedMin(roll, cfg.factor),
+      min: isOption ? null : exact ? (roll ?? null) : hit.negated ? null : bandedMin(roll, factor),
       max: isOption ? null : exact ? (roll ?? null) : negatedMax,
-      group: cfg.group,
+      // Optional by default; each line is switchable to Must / Exclude / Off.
+      group: "count",
       // Default off: search the mod normally (matches fractured or not). The
       // Frac toggle stays available for users who specifically want fractured.
       fractured: false,
@@ -316,7 +316,8 @@ async function autoFilters(
   return { filters, unmatched };
 }
 
-const band = (value: number, factor: number) => Math.max(1, Math.floor(value * factor));
+const band = (value: number, factor: number): number | null =>
+  factor <= 0 ? null : Math.max(1, Math.floor(value * factor));
 
 /** Default computed filters: armour defences + (for weapons) DPS. */
 async function autoComputed(
@@ -348,7 +349,8 @@ async function autoComputed(
     if (base) {
       const dps = computeWeaponDps(item, base);
       // Decimal band for small values (aps/crit); integer band for DPS.
-      const decBand = (v: number) => Math.round(v * factor * 10) / 10;
+      const decBand = (v: number): number | null =>
+        factor <= 0 ? null : Math.round(v * factor * 10) / 10;
       // Default to the *specific* DPS the weapon actually has (phys/ele) plus
       // attack speed and crit; Total DPS is available but off by default.
       const rows: Array<[string, string, number, number | null, boolean]> = [
@@ -387,10 +389,10 @@ function toStatFilter(f: EditableFilter): TradeStatFilter {
 export async function buildItemQuery(
   game: GameId,
   item: ParsedItem,
-  mode: BudgetMode,
+  rollPercent: RollPercent,
   overrides?: QueryOverrides,
 ): Promise<BuiltQuery> {
-  const cfg = MODE_CONFIG[mode];
+  const factor = factorOf(rollPercent);
 
   let filters: EditableFilter[];
   let unmatched: number;
@@ -398,7 +400,7 @@ export async function buildItemQuery(
     filters = overrides.filters;
     unmatched = 0;
   } else {
-    const auto = await autoFilters(game, item, mode);
+    const auto = await autoFilters(game, item, factor);
     filters = auto.filters;
     unmatched = auto.unmatched;
   }
@@ -474,7 +476,7 @@ export async function buildItemQuery(
   for (const key of BAND_ORDER) {
     const list = countByBand.get(key);
     if (!list || list.length === 0) continue;
-    const fallback = Math.max(1, Math.round(list.length * cfg.fraction));
+    const fallback = Math.max(1, Math.round(list.length * BAND_FRACTION));
     const min = Math.min(Math.max(1, overrides?.bandMins?.[key] ?? fallback), list.length);
     bands.push({ key, label: BAND_LABEL[key], total: list.length, min });
   }
@@ -532,8 +534,8 @@ export async function buildItemQuery(
 
   if (item.category === "gem") {
     const g = overrides?.gem;
-    const level = g ? g.level : mode !== "budget" ? item.gemLevel ?? null : null;
-    const quality = g ? g.quality : mode !== "budget" ? item.quality ?? null : null;
+    const level = g ? g.level : item.gemLevel ?? null;
+    const quality = g ? g.quality : item.quality ?? null;
     const sockets = g ? g.sockets : null;
     const gemFilters: Record<string, unknown> = {};
 
@@ -578,7 +580,7 @@ export async function buildItemQuery(
   }
 
   // Equipment filters: armour defences + weapon DPS, routed to the right group.
-  const equipment = overrides?.equipment ?? (await autoComputed(game, item, cfg.factor));
+  const equipment = overrides?.equipment ?? (await autoComputed(game, item, factor));
   const armourKey = getGame(game).equipmentFilterKey;
   const weaponKey = getGame(game).weaponFilterKey;
   const byKey: Record<string, Record<string, { min?: number; max?: number }>> = {};
@@ -602,7 +604,7 @@ export async function buildItemQuery(
   if (hasWeapon) strategyParts.push("DPS");
 
   // Pseudo "total" aggregate filters (off by default; user opts in).
-  const pseudo = overrides?.pseudo ?? computePseudoFilters(item.mods, cfg.factor);
+  const pseudo = overrides?.pseudo ?? computePseudoFilters(item.mods, factor);
   const pseudoStatFilters: TradeStatFilter[] = [];
   for (const p of pseudo) {
     if (!p.include) continue;
@@ -638,12 +640,6 @@ export async function buildItemQuery(
     }
     query.filters.misc_filters = misc;
     strategyParts.push(item.influences.join("+"));
-  }
-
-  if (mode === "budget") {
-    const misc = query.filters.misc_filters ?? { filters: {} };
-    misc.filters.corrupted = { option: false };
-    query.filters.misc_filters = misc;
   }
 
   // (Buy-out is handled by status `securable` above for both games.)

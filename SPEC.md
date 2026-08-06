@@ -48,9 +48,9 @@ Goal: **easy to use, but intentional and good-looking** — not a default templa
 - **Single-screen flow**: paste pobb.in link → items appear as cards → click a link / tweak / fetch price. Minimal steps, no deep navigation.
 - **Header**: app name, the **PoE1 ⇄ PoE2 toggle**, and the **league selector** (defaults to the current challenge league for the active game; remembered per session).
 - **Game toggle** is global state — switching it reloads the correct registry (endpoints, league list, stat DB, tier/base data) and re-generates links.
-- **Item cards**: rarity-colored names (normal/magic/rare/unique), base-tier badge (§6), mod list with the tunable filter panel (§5), the trade link, budget-axis switch (min-max / as-is / budget, §7), and an on-demand "fetch price" button.
+- **Item cards**: rarity-colored names (normal/magic/rare/unique), base-tier badge (§6), mod list with the tunable filter panel (§5), the trade link, the roll slider (§7), and an on-demand "fetch price" button.
 - **Visual direction**: PoE-appropriate **dark editorial** — deep neutral background, parchment/gold accents, the game's rarity palette used *semantically* (not decoration). Clear hierarchy via scale contrast, designed hover/focus/active states, restrained compositor-friendly motion. Respect `prefers-reduced-motion`. Two breakpoints minimum (mobile + desktop).
-- **Ease-of-use guardrails**: sensible defaults so a user can paste-and-go without touching any toggle; advanced controls (groups, bands, budget) are progressively disclosed, not in the way.
+- **Ease-of-use guardrails**: sensible defaults so a user can paste-and-go without touching any toggle; advanced controls (groups, bands, roll) are progressively disclosed, not in the way.
 
 ## 4. External data sources
 
@@ -93,16 +93,26 @@ Link regenerates live as the client tweaks.
 - **Base-type tier:** shown per item; optional "search same item class at this base tier or
   better" broadening; high-tier bases highlighted/prioritized.
 
-## 7. Budget Axis & item variants  *(per-item)*
+## 7. Roll axis & item variants  *(per-item)*
 
-Every item can be generated at multiple points on a budget axis. The client picks per item
-(and can apply a build-wide default):
+Every item is generated at a point on a single continuous axis: **how good a roll counts as a
+match**, as a percentage of the roll the build's item actually has. One slider per item,
+0–100%, default 80%.
 
-| Mode | Intent | Behavior |
-|---|---|---|
-| **Min-max** | best possible version (expensive) | max out rollable mods; require desirable corrupted implicits / double-corrupts; top tier base; tightest filters |
-| **As-is** (default) | match the build's actual item | similar/fuzzy filters from the real rolls |
-| **Budget** | cheapest acceptable (save money) | relax/zero mod mins; uncorrupted; allow lower base tier; minimal defining mods only |
+| Position | Meaning |
+|---|---|
+| **100%** | at least as good as this item — the tightest search |
+| **80%** (default) | a similar item, allowing rolls a fifth below the build's |
+| **0%** | no roll floor at all; search on the presence of the mods alone |
+
+Each matched mod's `min` is set to `floor(roll × percent)`; the same factor bands the computed
+equipment filters (defences, weapon DPS) and the pseudo totals.
+
+This replaced three presets (Min-max / As-is / Budget). They bundled unrelated decisions —
+roll threshold, whether mods were required or optional, whether corrupted items were excluded —
+behind one word, so "the same item but slightly cheaper rolls" meant jumping a whole preset.
+The other two decisions are now where they belong and were already individually editable:
+Must / Any / Exclude per mod, and a match-any-N threshold per optional pool (§5).
 
 - **Suggest cheaper alternatives:** when price fetch is enabled, recommend the cheapest version
   that still meets a client-set threshold (e.g. "within 10% of the build's stats for X% of the cost").
@@ -112,20 +122,19 @@ Every item can be generated at multiple points on a budget axis. The client pick
 Uniques cannot be searched by name alone — value depends on rolls, variants, and corruptions.
 
 - **Variable mod rolls:** a unique's rollable explicit mods map to stat IDs; emit as min/max
-  filters. Min-max = high rolls; Budget = relaxed/ignored.
+  filters, banded by the roll percentage (§7).
 - **Variants:** some uniques have multiple variants (legacy vs current, alternate versions,
   selectable mods like Watcher's Eye / Impresence / Combat Focus). Detect and let the client
   pick the variant; map variant-specific mods to the correct stat IDs.
 - **Corruption / double-corrupt:** corrupted implicits (Vaal implicits) can multiply value.
-  - Min-max: require specific desirable corrupted implicits (`corrupted = true`).
-  - As-is: match the build item's corruption state.
-  - Budget: `corrupted = false` (or any), drop corruption requirements to lower price.
+  Not currently constrained either way — a corrupted implicit the build's item happens to carry
+  is searched as an ordinary mod, and can be switched off per line like any other.
 - **Corruption data source:** RePoE / game data for possible corrupted-implicit outcomes per item.
 
 ## 8. Item category rules (detailed)
 
-Each category maps the build item to a trade query. "Min-max / As-is / Budget" refer to the
-§7 budget axis. Trade query group names below reference the PoE1 `query` object
+Each category maps the build item to a trade query. "Banded" below means scaled by the §7 roll
+percentage. Trade query group names below reference the PoE1 `query` object
 (`filters.type_filters`, `.weapon_filters`, `.armour_filters`, `.socket_filters`,
 `.req_filters`, `.misc_filters`, `.trade_filters`, plus the `stats` groups from §5).
 
@@ -142,18 +151,17 @@ Each category maps the build item to a trade query. "Min-max / As-is / Budget" r
 ### 8.2 Weapons — computed DPS searching
 - Offer DPS-based search as an **alternative/supplement** to mod-by-mod (often how min-max
   weapons are priced): `weapon_filters` → `dps`, `pdps`, `edps`, `aps`, `crit`.
-- Min-max: set `pdps`/`edps`/`dps` min from the build's weapon (banded). Budget: lower the floor.
+- Set `pdps`/`edps`/`dps` min from the build's weapon, banded by the roll percentage (§7).
 - Still attach key explicit mods (e.g. +levels of gems, crit multi) as `and`/`weight`.
 
 ### 8.3 Armour — computed defences
 - `armour_filters` → `armour`, `evasion`, `energy_shield`, `block`, `ward`, `total defences`.
-- Min-max: search by total defence (banded). Budget: relax.
+- Search by total defence, banded by the roll percentage (§7).
 
 ### 8.4 Sockets / links / colours
 - **PoE1** (`socket_filters`): `links` (min/max for largest linked group), `sockets`
   (count + colour requirement R/G/B/W/A, incl. abyssal/white).
-  - Min-max: required links (e.g. 6L) + colours.
-  - **Budget default:** ignore links/colours — assume the buyer links/chromes themselves
+  - **Default:** ignore links/colours — assume the buyer links/chromes themselves
     (cheaper). Toggle to enforce when relevant (e.g. 6L on expensive uniques).
 - **PoE2**: no gem links; gear has **rune sockets**. Search by rune-socket count; runes are
   separate items. Handle under PoE2 enablement.
@@ -165,20 +173,20 @@ Each category maps the build item to a trade query. "Min-max / As-is / Budget" r
 - **Veiled** mods → `misc_filters.veiled`; **crafted** → mods flagged crafted; **fractured**
   mods are explicit-but-locked → still map as explicit stats.
 - Rule: influence/synth is usually a *means to a mod*. Default = search the **mod**, not the
-  influence flag (broader, cheaper). Min-max may pin the influence; budget never does.
+  influence flag (broader, cheaper).
 
 ### 8.6 Jewels (regular & abyss)
 - Type filter (jewel base / abyss jewel). Jewels roll 2–4 mods from a pool → ideal for
   **`count`/`weight`** groups ("any item with these 2–3 good mods"), rarely `and`-all.
 - Abyss jewels: base + mods; note they also need an abyssal socket on gear (informational).
-- Min-max: more required mods + higher mins. Budget: 1–2 key mods via `count`.
+- A high roll % raises every min; switching mods to Must (§5) is what makes them required.
 
 ### 8.7 Cluster jewels  (PoE1)
 - Value = the **enchant** mods granting notables (`enchant.stat_*` "Added Passive Skill is X")
   plus the "Adds N Passive Skills" / "1 Added Passive ... grant" implicit.
 - Search by the desired **notables** as a `count` group (e.g. "has any 2 of these notables").
 - Constrain base (Large/Medium/Small), `ilvl` (50/68/75 passive-count tiers), and total added
-  passives. Min-max: exact notables + ilvl + low passive count (efficient). Budget: notables only.
+  passives. Notables are matched as mods; ilvl and passive count are left to the user.
 
 ### 8.8 Flasks
 - **PoE1**: utility/life/mana flasks; search base + prefix/suffix explicit mods via `count`
@@ -189,7 +197,7 @@ Each category maps the build item to a trade query. "Min-max / As-is / Budget" r
 ### 8.9 Gems (skill & support)
 - `type` = gem name; `misc_filters` → `gem_level`, `gem_level_progress`, `quality`,
   `corrupted`, `gem_alternate_quality` / transfigured variant where applicable.
-- Min-max: level 21 (corrupted) + quality 23, or 20/20 baseline. Budget: 20/0 or 1/20.
+- Level and quality default to the build gem's own, and are editable per gem.
 - Special: Awakened supports (level matters most), Empower/Enlighten/Enhance (level-gated),
   Vaal gems (separate type), transfigured gems (distinct names).
 
