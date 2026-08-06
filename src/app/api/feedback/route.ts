@@ -40,23 +40,49 @@ export async function POST(request: Request) {
     }),
   );
 
-  // Forward to a webhook (Discord webhook, Formspree, etc.) if configured.
+  /**
+   * Forward to a webhook (Discord, Formspree, …) if configured.
+   *
+   * The outcome is logged. This used to swallow every failure silently, which
+   * made a webhook that had been revoked, rate-limited or mistyped look exactly
+   * like one that was working — feedback would simply stop arriving and nothing
+   * would say so. The URL itself is never logged; it is a secret.
+   *
+   * The sender is still told the message went through either way. It did: it is
+   * in these logs. Failing someone's bug report because our relay is down would
+   * only lose the report twice.
+   */
   const hook = process.env.FEEDBACK_WEBHOOK_URL;
-  if (hook) {
-    try {
-      const tag = category ? ` [${category}]` : "";
-      const text = `📝 FastBuildPOE feedback${tag}\n${message}\n— contact: ${contact || "(none)"} · page: ${page || "-"}`;
-      const payload = hook.includes("discord")
-        ? { content: text.slice(0, 1900) }
-        : { message, category: category || "", contact: contact || "", page: page || "" };
-      await fetch(hook, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } catch {
-      // Logged above regardless.
+  if (!hook) {
+    console.warn("[feedback] no FEEDBACK_WEBHOOK_URL configured — kept in logs only.");
+    return NextResponse.json({ success: true, error: null });
+  }
+
+  try {
+    const tag = category ? ` [${category}]` : "";
+    const text = `📝 FastBuildPOE feedback${tag}\n${message}\n— contact: ${contact || "(none)"} · page: ${page || "-"}`;
+    const payload = hook.includes("discord")
+      ? { content: text.slice(0, 1900) }
+      : { message, category: category || "", contact: contact || "", page: page || "" };
+    const res = await fetch(hook, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      console.log("[feedback] webhook delivered:", res.status);
+    } else {
+      console.error(
+        "[feedback] webhook REJECTED the message:",
+        res.status,
+        (await res.text()).slice(0, 300),
+      );
     }
+  } catch (error) {
+    console.error(
+      "[feedback] webhook unreachable:",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 
   return NextResponse.json({ success: true, error: null });
