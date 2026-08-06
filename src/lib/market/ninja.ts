@@ -12,7 +12,17 @@
  * NOTE: the API is public but unversioned — shapes can change between leagues.
  */
 
-const NINJA_BASE = "https://poe.ninja/poe1/api/economy";
+/**
+ * poe.ninja serves each game under its own prefix with the same route shapes.
+ * The Currency Exchange boards are PoE1-only (PoE2 has no Faustus), so
+ * everything here defaults to poe1; the build pricer passes the game through.
+ */
+const NINJA_BASE_BY_GAME = {
+  poe1: "https://poe.ninja/poe1/api/economy",
+  poe2: "https://poe.ninja/poe2/api/economy",
+} as const;
+
+const NINJA_BASE = NINJA_BASE_BY_GAME.poe1;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const USER_AGENT = process.env.APP_USER_AGENT ?? "FastBuildPOE/0.1 (+https://fastbuildpoe.xyz)";
 
@@ -181,6 +191,22 @@ export const UNIQUE_TYPES = [
   "UniqueJewel",
 ] as const;
 
+/**
+ * The same categories for PoE2 — spelled plural.
+ *
+ * That difference is the whole reason PoE2 builds showed no prices: the feed
+ * exists and is well populated, but the singular PoE1 names 404 against it, and
+ * the pricer never got as far as asking. Verified against the live API:
+ * Weapons 149 lines, Armours 440, Accessories 87, Flasks 6, Jewels 14.
+ */
+export const UNIQUE_TYPES_POE2 = [
+  "UniqueWeapons",
+  "UniqueArmours",
+  "UniqueAccessories",
+  "UniqueFlasks",
+  "UniqueJewels",
+] as const;
+
 export interface NinjaStashLine {
   name?: string;
   icon?: string;
@@ -188,6 +214,13 @@ export interface NinjaStashLine {
   /** Link count of this price line; absent on the unlinked (drop-state) line. */
   links?: number;
   chaosValue?: number;
+  /**
+   * PoE2 prices every line in the feed's primary currency instead, which for
+   * PoE2 is the Divine Orb itself (`core.primary` is divine, and the divine
+   * line quotes 1). So a PoE2 `primaryValue` is already a divine amount and
+   * needs no conversion, where PoE1 `chaosValue` does.
+   */
+  primaryValue?: number;
   divineValue?: number;
   listingCount?: number;
   detailsId?: string;
@@ -199,10 +232,14 @@ export interface NinjaStashLine {
 }
 
 /** Lines of one stash-based economy category (uniques, gems, invitations…). */
-export async function stashLines(league: string, type: string): Promise<NinjaStashLine[]> {
+export async function stashLines(
+  league: string,
+  type: string,
+  game: "poe1" | "poe2" = "poe1",
+): Promise<NinjaStashLine[]> {
   const params = new URLSearchParams({ league, type });
   const json = await getJson<{ lines?: NinjaStashLine[] }>(
-    `${NINJA_BASE}/stash/current/item/overview?${params}`,
+    `${NINJA_BASE_BY_GAME[game]}/stash/current/item/overview?${params}`,
   );
   return json?.lines ?? [];
 }
