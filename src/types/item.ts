@@ -75,8 +75,8 @@ export interface GemGroup {
 /**
  * A single PoB item set ("version") with its items grouped by category.
  * Streamer builds commonly ship several (e.g. "Budget", "Mid", "Endgame").
- * Gear and flasks vary per set; jewels and gem groups are build-level and
- * repeated in every view for convenient display.
+ * Gear, flasks, and gear-socketed jewels vary per set. Passive-tree jewels are
+ * paired with the matching tree/loadout; gem groups remain build-level.
  */
 export interface ItemSetView {
   id: string;

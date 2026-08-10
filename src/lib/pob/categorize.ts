@@ -38,6 +38,9 @@ export function categorize(
   if (rarity === "gem") return "gem";
   if ((slot && /charm/i.test(slot)) || /\bcharm\b/i.test(baseType)) return "charm";
   if ((slot && /flask/i.test(slot)) || /\bflask\b/i.test(baseType)) return "flask";
-  if (/\bjewel\b/i.test(baseType)) return "jewel";
+  // PoE2 jewel bases are named Ruby / Emerald / Sapphire / Diamond, so the
+  // base text alone is not enough to identify them. Passive-tree socket slots
+  // are unambiguous and work for both games.
+  if ((slot && /^jewel\b/i.test(slot)) || /\bjewel\b/i.test(baseType)) return "jewel";
   return "gear";
 }

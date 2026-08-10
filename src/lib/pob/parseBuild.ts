@@ -37,6 +37,119 @@ function numAttr(node: XmlNode | undefined, key: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+interface TreeJewelSpec {
+  title: string;
+  linkIds: string[];
+  /** null means this spec predates `<Sockets>`; [] means it has no jewels. */
+  jewels: ParsedItem[] | null;
+}
+
+interface TreeJewelContext {
+  specs: TreeJewelSpec[];
+  activeIndex: number;
+}
+
+/** PoB presents an untitled tree/item set as the `Default` loadout. */
+function loadoutTitle(value: unknown): string {
+  return String(value ?? "").trim() || "Default";
+}
+
+/** Resolve one passive-tree spec's socket references, preserving occurrences. */
+function parseTreeSpecJewels(
+  spec: XmlNode,
+  rawById: Map<string, string>,
+): ParsedItem[] | null {
+  if (!("Sockets" in spec)) return null;
+  const socketsNode = spec.Sockets;
+  if (!socketsNode || typeof socketsNode !== "object") return [];
+
+  const socketNodes = asArray(
+    (socketsNode as XmlNode).Socket as XmlNode | XmlNode[] | undefined,
+  ).sort((a, b) => {
+    const aId = Number(a["@_nodeId"] ?? 0);
+    const bId = Number(b["@_nodeId"] ?? 0);
+    return aId - bId;
+  });
+
+  const jewels: ParsedItem[] = [];
+  for (const socket of socketNodes) {
+    const itemId = String(socket["@_itemId"] ?? "");
+    if (!itemId || itemId === "0") continue;
+    const text = rawById.get(itemId);
+    if (!text) continue;
+
+    const nodeId = String(socket["@_nodeId"] ?? "");
+    // The slot is also how PoE2's Ruby/Emerald/Sapphire/Diamond bases are
+    // distinguished from ordinary gear without relying on a brittle base list.
+    const parsed = parseItemText(text, nodeId ? `Jewel ${nodeId}` : "Jewel");
+    if (parsed?.category === "jewel") jewels.push(parsed);
+  }
+  return jewels;
+}
+
+/**
+ * Parse every tree spec so an item-set/loadout can use its matching jewels.
+ * PoB stores item definitions once under `<Items>`, then each socket references
+ * one by id. The same item id may be used by several sockets, so the arrays
+ * above deliberately preserve occurrences rather than deduplicating by id.
+ */
+function parseTreeJewelContext(
+  root: XmlNode,
+  rawById: Map<string, string>,
+): TreeJewelContext | null {
+  const tree = root.Tree as XmlNode | undefined;
+  if (!tree) return null;
+
+  const childSpecs = asArray(tree.Spec as XmlNode | XmlNode[] | undefined);
+  const specNodes = childSpecs.length > 0 ? childSpecs : [tree];
+  const requestedSpec = Number.parseInt(String(tree["@_activeSpec"] ?? "1"), 10);
+  const activeIndex = Number.isFinite(requestedSpec)
+    ? Math.min(specNodes.length - 1, Math.max(0, requestedSpec - 1))
+    : 0;
+
+  return {
+    activeIndex,
+    specs: specNodes.map((spec) => {
+      const title = loadoutTitle(spec["@_title"]);
+      const linkMatch = title.match(/\{([\w,]+)\}/);
+      return {
+        title,
+        linkIds: linkMatch ? linkMatch[1].split(",") : [],
+        jewels: parseTreeSpecJewels(spec, rawById),
+      };
+    }),
+  };
+}
+
+/** Match PoB's loadout rule: active pair first, then title or `{linkId}`. */
+function jewelsForItemSet(
+  context: TreeJewelContext | null,
+  setNode: XmlNode | undefined,
+  activeItemSetId: string,
+  legacyJewels: ParsedItem[],
+): { jewels: ParsedItem[]; hasTreeSocketData: boolean } {
+  if (!context || context.specs.length === 0) {
+    return { jewels: legacyJewels, hasTreeSocketData: false };
+  }
+
+  const setId = setNode ? String(setNode["@_id"] ?? "") : "1";
+  const setTitle = loadoutTitle(setNode?.["@_title"]);
+  const setLinkMatch = setTitle.match(/\{([\w,]+)\}/);
+  const setLinkIds = setLinkMatch ? setLinkMatch[1].split(",") : [];
+
+  let selected = setId === activeItemSetId ? context.specs[context.activeIndex] : undefined;
+  selected ??= context.specs.find((spec) => spec.title === setTitle);
+  selected ??= context.specs.find((spec) =>
+    spec.linkIds.some((id) => setLinkIds.includes(id)),
+  );
+  selected ??= context.specs[context.activeIndex];
+
+  if (selected.jewels === null) {
+    return { jewels: legacyJewels, hasTreeSocketData: false };
+  }
+  return { jewels: selected.jewels, hasTreeSocketData: true };
+}
+
 /**
  * Gems live in the Skills section, not Items. Each `<Skill>` is one linked
  * socket group; we keep that grouping so users can scan setups by link.
@@ -131,8 +244,9 @@ export function parseBuildXml(xml: string): ParsedBuild {
     }
   }
 
-  // Build-level items (jewels) + parse failures. Jewels are not in item-set slots.
-  const jewels: ParsedItem[] = [];
+  // Parse failures are counted over the item definitions. Keep a legacy jewel
+  // list for old builds that have no passive-tree socket data at all.
+  const legacyJewels: ParsedItem[] = [];
   let skipped = 0;
   for (const text of rawById.values()) {
     const parsed = parseItemText(text);
@@ -140,8 +254,10 @@ export function parseBuildXml(xml: string): ParsedBuild {
       skipped++;
       continue;
     }
-    if (parsed.category === "jewel") jewels.push(parsed);
+    if (parsed.category === "jewel") legacyJewels.push(parsed);
   }
+
+  const treeJewelContext = parseTreeJewelContext(root, rawById);
 
   const gems = parseGems(root);
 
@@ -157,8 +273,15 @@ export function parseBuildXml(xml: string): ParsedBuild {
   for (const setNode of sourceSets) {
     const id = setNode ? String(setNode["@_id"] ?? "") : "1";
     const title = (setNode ? String(setNode["@_title"] ?? "") : "").trim();
+    const selectedJewels = jewelsForItemSet(
+      treeJewelContext,
+      setNode,
+      activeItemSetId,
+      legacyJewels,
+    );
 
     const gear: ParsedItem[] = [];
+    const jewels: ParsedItem[] = [...selectedJewels.jewels];
     const flasks: ParsedItem[] = [];
     const charms: ParsedItem[] = [];
 
@@ -173,6 +296,12 @@ export function parseBuildXml(xml: string): ParsedBuild {
         if (!parsed) continue;
         if (parsed.category === "flask") flasks.push(parsed);
         else if (parsed.category === "charm") charms.push(parsed);
+        // Abyss jewels live in gear sockets under the item set rather than in
+        // passive-tree `<Sockets>`. Only add them here for modern builds; the
+        // legacy all-items fallback already contains their item definitions.
+        else if (parsed.category === "jewel" && selectedJewels.hasTreeSocketData) {
+          jewels.push(parsed);
+        }
         else if (parsed.category === "gear") gear.push(parsed);
       }
     }
