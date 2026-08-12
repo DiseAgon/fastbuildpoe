@@ -24,6 +24,7 @@ const ModSchema = z.object({
     "unknown",
   ]),
   affix: z.enum(["prefix", "suffix"]).optional(),
+  source: z.enum(["searing", "eater", "eldritch", "vestigial"]).optional(),
 });
 
 const BandSchema = z.enum(["implicit", "prefix", "suffix", "other"]);
@@ -32,9 +33,11 @@ const ItemSchema = z.object({
   rarity: z.enum(["normal", "magic", "rare", "unique", "gem", "currency"]),
   name: z.string(),
   baseType: z.string(),
+  slot: z.string().optional(),
   category: z.enum(["gear", "jewel", "gem", "flask", "charm"]),
   gemLevel: z.number().optional(),
   quality: z.number().optional(),
+  sockets: z.string().optional(),
   corrupted: z.boolean().optional().default(false),
   defences: z
     .object({
@@ -45,6 +48,7 @@ const ItemSchema = z.object({
     })
     .optional(),
   influences: z.array(z.string()).optional(),
+  vestigial: z.boolean().optional(),
   mods: z.array(ModSchema),
 });
 
@@ -59,6 +63,7 @@ const FilterSchema = z.object({
   fracturedStatId: z.string().nullable().optional().default(null),
   option: z.number().nullable().optional().default(null),
   band: BandSchema.optional().default("other"),
+  source: z.enum(["searing", "eater", "eldritch", "vestigial"]).optional(),
 });
 
 const EquipmentSchema = z.object({
@@ -78,12 +83,19 @@ const PseudoSchema = z.object({
   min: z.number().nullable(),
   max: z.number().nullable(),
   include: z.boolean(),
+  family: z.enum(["resistance"]).optional(),
+});
+
+const SocketSchema = z.object({
+  links: z.number().int().min(0).max(6).nullable(),
+  sockets: z.number().int().min(0).max(6).nullable(),
+  runeSockets: z.number().int().min(0).max(6).nullable(),
 });
 
 const RequestBody = z.object({
   game: z.string().refine(isGameId, "Unknown game."),
   /** Minimum roll to match, as a percentage of the item's own roll. */
-  roll: z.number().min(0).max(100).optional(),
+  roll: z.number().min(0).max(120).optional(),
   league: z.string().optional(),
   item: ItemSchema,
   bandMins: z.record(BandSchema, z.number()).optional(),
@@ -91,7 +103,9 @@ const RequestBody = z.object({
   equipment: z.array(EquipmentSchema).optional(),
   pseudo: z.array(PseudoSchema).optional(),
   buyout: z.boolean().optional(),
+  baseScope: z.enum(["exact", "slot", "any"]).optional(),
   useBase: z.boolean().optional(),
+  socket: SocketSchema.optional(),
   gem: z
     .object({
       level: z.number().nullable(),
@@ -132,7 +146,9 @@ export async function POST(request: Request) {
       equipment: parsed.data.equipment,
       pseudo: parsed.data.pseudo,
       buyout: parsed.data.buyout,
+      baseScope: parsed.data.baseScope,
       useBase: parsed.data.useBase,
+      socket: parsed.data.socket,
       gem: parsed.data.gem,
     };
     const [resolvedLeague, built] = await Promise.all([
@@ -154,7 +170,8 @@ export async function POST(request: Request) {
         filters: built.filters,
         equipment: built.equipment,
         pseudo: built.pseudo,
-        useBase: built.useBase,
+        baseScope: built.baseScope,
+        socket: built.socket,
         strategy: built.strategy,
       },
       error: null,

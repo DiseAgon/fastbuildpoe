@@ -23,7 +23,7 @@ const STEPS: { title: string; body: string }[] = [
   },
   {
     title: "Tune the search",
-    body: "Untick any mod you don't want matched — the checkbox next to it drops it from the search. Pick a Min-max / As-is / Budget preset for strictness, and toggle Buy-out and Base. “Advanced” adds roll ranges, Must / Any / Exclude grouping, pseudo Totals and weapon DPS / armour filters.",
+    body: "Open Configure trade search to choose Budget / Similar / Exact / Upgrade, broaden the base, tune properties and modifiers, or replace overlapping raw mods with one pseudo total.",
   },
   {
     title: "Note prices & share",

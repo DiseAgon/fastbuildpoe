@@ -5,12 +5,9 @@ import { MOD_TYPE_CLASS, MOD_TYPE_LABEL } from "@/lib/rarity";
 import type { TradeSelectionState } from "@/hooks/useTradeSelection";
 
 /**
- * The item's mods, each with a checkbox for "include this in the trade search".
- *
- * Picking which mods to match is the main thing people adjust, so it lives here
- * on the mods themselves rather than behind the advanced panel. A mod with no
- * trade stat (PoB text the stat index can't match) shows a disabled box and says
- * so — silently rendering it as unchecked would look like a choice we made.
+ * The item's mods and their current search state. Editing lives in the focused
+ * trade-search dialog so base scope, properties, pseudo replacements and raw
+ * modifiers are visible together rather than split across two surfaces.
  *
  * "No stat" is a verdict, so it waits for one. Until the first response lands
  * there are no filters to line up against and every row qualified, which made
@@ -23,8 +20,7 @@ export function ModList({
   item: ParsedItem;
   trade: TradeSelectionState;
 }) {
-  const { sel, toggleFilter, filterIndexByMod, data } = trade;
-  const ready = sel.filters.length > 0;
+  const { sel, filterIndexByMod, data } = trade;
   /** The server has answered, so an unmatched mod really has no trade stat. */
   const answered = data !== null;
 
@@ -39,33 +35,21 @@ export function ModList({
         const filter = fi >= 0 ? sel.filters[fi] : undefined;
         const searchable = filter !== undefined;
         const included = searchable && filter.group !== "off";
-        const id = `mod-${item.name}-${i}`.replace(/[^a-zA-Z0-9_-]/g, "-");
-
         return (
           <li key={i}>
-            <label
-              htmlFor={id}
-              className={`flex items-start gap-2 rounded px-1 py-0.5 transition-colors ${
-                searchable ? "cursor-pointer hover:bg-surface-raised" : "cursor-default"
-              }`}
+            <div
+              className="flex items-start gap-2 rounded px-1 py-0.5"
               title={
                 searchable
                   ? included
-                    ? "Included in the trade search — uncheck to ignore"
-                    : "Ignored — check to require it"
+                    ? "Included in the trade search"
+                    : "Ignored in the trade search — edit in Configure trade search"
                   : answered
                     ? "No trade stat matches this line, so it can't be searched"
                     : "Building the trade search…"
               }
             >
-              <input
-                id={id}
-                type="checkbox"
-                checked={included}
-                disabled={!searchable || !ready}
-                onChange={(e) => searchable && toggleFilter(fi, e.target.checked)}
-                className="mt-1 h-3.5 w-3.5 shrink-0 accent-[color:var(--color-accent)] disabled:opacity-30"
-              />
+              <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${included ? "bg-accent" : "bg-border"}`} aria-hidden />
               <span
                 className={`mt-0.5 shrink-0 text-[10px] uppercase tracking-wide ${MOD_TYPE_CLASS[mod.type]}`}
               >
@@ -90,7 +74,7 @@ export function ModList({
                   no stat
                 </span>
               )}
-            </label>
+            </div>
           </li>
         );
       })}

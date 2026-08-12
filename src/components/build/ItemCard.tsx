@@ -108,6 +108,7 @@ export function ItemCard({ item, number }: { item: ParsedItem; number: number })
         {!isGem && item.itemLevel !== undefined && <span>iLvl {item.itemLevel}</span>}
         {!isGem && item.quality ? <span>Q {item.quality}%</span> : null}
         {item.sockets && <span>{item.sockets}</span>}
+        {item.vestigial && <span className="text-accent">Vestigial</span>}
         {item.corrupted && <span className="text-danger">Corrupted</span>}
       </div>
 

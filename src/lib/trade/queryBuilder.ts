@@ -2,11 +2,14 @@ import type { GameId } from "@/lib/game/registry";
 import { getGame } from "@/lib/game/registry";
 import type { ParsedItem } from "@/types/item";
 import { getStatIndex, matchMod, normalizeStatText, type StatIndex } from "./statIndex";
-import { computePseudoFilters } from "./pseudo";
+import { computePseudoFilters, pseudoCoversFilter, type PseudoFamily } from "./pseudo";
 import { MOD_FAMILIES } from "./groups";
-import { getWeaponBase } from "./weaponBase";
+import { getWeaponBase, getWeaponTradeCategory } from "./weaponBase";
 import { computeWeaponDps } from "./weaponDps";
 import { resolveGemType } from "./gemTypes";
+import { emptySocketOptions, type SocketOptions } from "./socketOptions";
+
+export type { SocketOptions } from "./socketOptions";
 
 /**
  * Roll axis — seeds each filter's minimum at this share of the item's own roll
@@ -14,6 +17,7 @@ import { resolveGemType } from "./gemTypes";
  * in the UI: Must / Any / Exclude per line, and a threshold per optional pool.
  */
 export type RollPercent = number;
+export type BaseScope = "exact" | "slot" | "any";
 
 /**
  * Share of an optional pool that must match by default.
@@ -84,6 +88,8 @@ export interface EditableFilter {
   option?: number | null;
   /** Which optional-mod pool this counts toward when `group` is "count". */
   band: StatBand;
+  /** Special item mechanic that produced this modifier. */
+  source?: ParsedItem["mods"][number]["source"];
 }
 
 /** A computed equipment filter — armour defences or weapon DPS. */
@@ -107,6 +113,8 @@ export interface PseudoFilter {
   min: number | null;
   max: number | null;
   include: boolean;
+  /** Mutually exclusive family for overlapping totals (currently resistances). */
+  family?: PseudoFamily;
 }
 
 export interface QueryOverrides {
@@ -117,8 +125,11 @@ export interface QueryOverrides {
   pseudo?: PseudoFilter[];
   /** Restrict to listings with a fixed buyout price (default true). */
   buyout?: boolean;
-  /** Constrain to the item's base type (default true). */
+  /** Exact base, same equipment slot/class, or no type restriction. */
+  baseScope?: BaseScope;
+  /** Backward compatibility with saved/in-flight clients. */
   useBase?: boolean;
+  socket?: SocketOptions;
   /** Gem search options (min level/quality/sockets). null = omit that filter. */
   gem?: { level: number | null; quality: number | null; sockets: number | null };
 }
@@ -185,7 +196,8 @@ export interface BuiltQuery {
   filters: EditableFilter[];
   equipment: EquipmentFilter[];
   pseudo: PseudoFilter[];
-  useBase: boolean;
+  baseScope: BaseScope;
+  socket: SocketOptions;
   strategy: string;
 }
 
@@ -211,6 +223,57 @@ const DEFENCE_VARIANT =
 
 function tradeBaseType(baseType: string): string {
   return baseType.replace(DEFENCE_VARIANT, "");
+}
+
+/** Official trade category that best represents “same slot/class”. */
+function tradeCategory(game: GameId, item: ParsedItem): string | null {
+  const slot = item.slot ?? "";
+  const base = item.baseType;
+  if (/helmet/i.test(slot)) return "armour.helmet";
+  if (/body armour/i.test(slot)) return "armour.chest";
+  if (/gloves/i.test(slot)) return "armour.gloves";
+  if (/boots/i.test(slot)) return "armour.boots";
+  if (/amulet/i.test(slot)) return "accessory.amulet";
+  if (/ring/i.test(slot)) return "accessory.ring";
+  if (/belt/i.test(slot)) return "accessory.belt";
+  if (/shield/i.test(base)) return "armour.shield";
+  if (/quiver/i.test(base)) return "armour.quiver";
+  const weaponCategory = getWeaponTradeCategory(game, base);
+  if (weaponCategory) return weaponCategory;
+  if (/weapon/i.test(slot)) return "weapon";
+  if (item.category === "jewel") return "jewel";
+  if (item.category === "flask") return "flask";
+  if (item.category === "charm") return "flask.charm";
+  return null;
+}
+
+function defaultSockets(): SocketOptions {
+  return emptySocketOptions();
+}
+
+/** Raw local rolls already represented by final defence/DPS property filters. */
+function coveredByEquipment(item: ParsedItem, filter: EditableFilter, equipment: EquipmentFilter[]): boolean {
+  if (item.rarity === "unique" || filter.band === "implicit") return false;
+  const enabled = new Set(equipment.filter((row) => row.include).map((row) => row.field));
+  const t = filter.text.toLowerCase();
+  const armourSlot = /helmet|body armour|gloves|boots/i.test(item.slot ?? "") || /shield/i.test(item.baseType);
+  // Flat ES on an armour base is local and already included in the final ES
+  // property. The same wording on jewellery is global, so slot context matters.
+  if (armourSlot && enabled.has("es") && /\bto maximum energy shield\b/.test(t) && !/% increased/.test(t)) {
+    return true;
+  }
+  const defence = /\b(?:armour|evasion|energy shield|ward)\b/.test(t);
+  if (defence && !/maximum|recharge|recovery|regenerat|leech|stun|block/.test(t)) {
+    if (/armour/.test(t) && enabled.has("ar")) return true;
+    if (/evasion/.test(t) && enabled.has("ev")) return true;
+    if (/energy shield/.test(t) && enabled.has("es")) return true;
+    if (/ward/.test(t) && enabled.has("ward")) return true;
+  }
+  if (enabled.has("pdps") && /(?:adds .* physical damage|increased physical damage)/.test(t)) return true;
+  if (enabled.has("edps") && /adds .* (?:fire|cold|lightning) damage/.test(t)) return true;
+  if (enabled.has("aps") && /attack speed/.test(t)) return true;
+  if (enabled.has("crit") && /critical strike chance/.test(t) && !/global/.test(t)) return true;
+  return false;
 }
 
 /**
@@ -311,6 +374,7 @@ async function autoFilters(
       fracturedStatId: fracturedEntry?.id ?? null,
       option: hit.option ?? null,
       band: bandOf(mod),
+      source: mod.source,
     });
   }
   return { filters, unmatched };
@@ -401,9 +465,64 @@ export async function buildItemQuery(
     unmatched = 0;
   } else {
     const auto = await autoFilters(game, item, factor);
-    filters = auto.filters;
+    // Unique identity is its name. Rolls remain available for opt-in variant
+    // searches, but adding all of them by default makes a name search brittle.
+    // A Vestigial armour's first implicit is different: it is the transferred
+    // donor property that defines this variant, so preserve it as required.
+    const vestigialImplicit = item.vestigial
+      ? (item.mods.find((mod) => mod.source === "vestigial") ??
+        item.mods.find((mod) => mod.type === "implicit"))?.text
+      : undefined;
+    filters = item.rarity === "unique"
+      ? auto.filters.map((filter) => ({
+          ...filter,
+          group:
+            vestigialImplicit !== undefined && filter.text === vestigialImplicit
+              ? "and" as const
+              : "off" as const,
+        }))
+      : item.rarity === "rare"
+        ? auto.filters.map((filter) =>
+            filter.source === "searing" ||
+            filter.source === "eater" ||
+            filter.source === "eldritch"
+              ? { ...filter, group: "off" as const }
+              : filter,
+          )
+        : auto.filters;
     unmatched = auto.unmatched;
   }
+
+  const autoEquipment = await autoComputed(game, item, factor);
+  const equipment = overrides?.equipment ?? (
+    item.rarity === "unique"
+      ? autoEquipment.map((row) => ({ ...row, include: false }))
+      : autoEquipment
+  );
+  const computedPseudo = overrides?.pseudo ?? computePseudoFilters(filters, factor);
+  // Only one overlapping resistance total can be active. Other pseudo kinds
+  // (life + attributes, for example) remain freely combinable.
+  const activeFamilies = new Set<string>();
+  const pseudo = computedPseudo.map((row) => {
+    if (!row.include || !row.family) return row;
+    if (activeFamilies.has(row.family)) return { ...row, include: false };
+    activeFamilies.add(row.family);
+    return row;
+  });
+  const activePseudo = pseudo.filter((row) => row.include);
+  filters = filters.map((filter) =>
+    activePseudo.some((row) => pseudoCoversFilter(row.statId, filter.statId)) ||
+    coveredByEquipment(item, filter, equipment)
+      ? { ...filter, group: "off" as const }
+      : filter,
+  );
+
+  const baseScope: BaseScope =
+    overrides?.baseScope ??
+    (overrides?.useBase !== undefined
+      ? overrides.useBase ? "exact" : "any"
+      : item.rarity === "unique" ? "any" : "exact");
+  const socket = overrides?.socket ?? defaultSockets();
 
   // An item has only one fractured mod, so AND-ing several fractured choices
   // finds nothing. When the user marks 2+ as fractured, collapse them into a
@@ -414,25 +533,27 @@ export async function buildItemQuery(
   const useFracCount = fracMulti.length >= 2;
   const inFracCount = (f: EditableFilter) => useFracCount && f.fractured && !!f.fracturedStatId;
 
-  // Family grouping: pull same-kind mods (resistances, attributes, added dmg,
-  // etc.) into a count group that also carries their disabled siblings.
+  // Same-kind family siblings are appended disabled to their existing band.
+  // Keeping the active members in Prefix/Suffix/Implicit preserves that band's
+  // similarity threshold; pulling them into a separate family group used to
+  // turn two resistances into "both required" even when the suffix pool asked
+  // for only one.
   const familyByStatId = resolveFamilies(await getStatIndex(game));
-  const inFamily = new Set<EditableFilter>();
-  const presentByFamily = new Map<string, EditableFilter[]>();
-  for (const f of filters) {
-    if (f.group !== "and" && f.group !== "count") continue;
-    if (inFracCount(f) || f.fractured) continue;
-    const fam = familyByStatId.get(f.statId);
-    if (!fam) continue;
-    const list = presentByFamily.get(fam.key) ?? [];
-    list.push(f);
-    presentByFamily.set(fam.key, list);
-    inFamily.add(f);
-  }
-
-  const andF = filters.filter((f) => f.group === "and" && !inFracCount(f) && !inFamily.has(f));
-  const countF = filters.filter((f) => f.group === "count" && !inFracCount(f) && !inFamily.has(f));
+  const andF = filters.filter((f) => f.group === "and" && !inFracCount(f));
+  const countF = filters.filter((f) => f.group === "count" && !inFracCount(f));
   const notF = filters.filter((f) => f.group === "not" && !inFracCount(f));
+  const activeFamilyIds = new Set([...andF, ...countF].map((filter) => filter.statId));
+  const disabledFamilySiblings = (present: EditableFilter[]): TradeStatFilter[] => {
+    const siblingIds = new Set<string>();
+    for (const filter of present) {
+      const family = familyByStatId.get(filter.statId);
+      if (!family) continue;
+      for (const id of family.memberIds) {
+        if (!activeFamilyIds.has(id)) siblingIds.add(id);
+      }
+    }
+    return [...siblingIds].map((id) => ({ id, disabled: true }));
+  };
 
   /**
    * Optional mods, split into one pool per band.
@@ -490,15 +611,21 @@ export async function buildItemQuery(
   }
   for (const band of bands) {
     const list = countByBand.get(band.key)!;
+    const siblings = disabledFamilySiblings(list);
     // min === total is "all of them", which reads better as a required group
-    // and spares the trade site a count group that can never be partly met.
-    if (band.min >= list.length) {
+    // unless disabled family alternatives are present. In that case `count`
+    // lets the user enable a sibling as an alternative on the trade site.
+    if (band.min >= list.length && siblings.length === 0) {
       stats.push({ type: "and", filters: list.map(toStatFilter) });
       strategyParts.push(
         list.length === 1 ? "1 required" : `all ${list.length} ${band.label.toLowerCase()}`,
       );
     } else {
-      stats.push({ type: "count", value: { min: band.min }, filters: list.map(toStatFilter) });
+      stats.push({
+        type: "count",
+        value: { min: band.min },
+        filters: [...list.map(toStatFilter), ...siblings],
+      });
       strategyParts.push(`any ${band.min} of ${list.length} ${band.label.toLowerCase()}`);
     }
   }
@@ -510,28 +637,11 @@ export async function buildItemQuery(
     stats.push({ type: "count", value: { min: 1 }, filters: fracMulti.map(toStatFilter) });
     strategyParts.push(`any 1 of ${fracMulti.length} fractured`);
   }
-  // Family count groups: present members enabled, siblings added disabled.
-  for (const [, present] of presentByFamily) {
-    const fam = familyByStatId.get(present[0].statId)!;
-    const presentIds = new Set(present.map((p) => p.statId));
-    const siblings = fam.memberIds
-      .filter((id) => !presentIds.has(id))
-      .map((id) => ({ id, disabled: true }));
-    stats.push({
-      type: "count",
-      value: { min: present.length },
-      filters: [...present.map(toStatFilter), ...siblings],
-    });
-    strategyParts.push(`${fam.label} (${present.length})`);
-  }
-
   // Buy-out → "Instant Buyout": status `securable` (supported by both PoE1 & PoE2
   // trade after async trading). Otherwise "In Person (Online)".
   const buyout = overrides?.buyout ?? true;
   const statusOption = buyout ? "securable" : "online";
   const query: TradeQuery = { status: { option: statusOption }, stats, filters: {} };
-  const useBase = overrides?.useBase ?? true;
-
   if (item.category === "gem") {
     const g = overrides?.gem;
     const level = g ? g.level : item.gemLevel ?? null;
@@ -571,16 +681,38 @@ export async function buildItemQuery(
     // strips it back off whenever it needs the real name — trade only knows the
     // real one, and sending the prefixed title is a 400 "Unknown item name".
     query.name = item.name.replace(/^foulborn\s+/i, "");
-    if (useBase) query.type = tradeBaseType(item.baseType);
+    strategyParts.push("unique name");
+    if (baseScope === "exact") query.type = tradeBaseType(item.baseType);
     query.filters.type_filters = { filters: { rarity: { option: "unique" } } };
   } else if (item.category === "flask" || item.category === "charm") {
-    if (useBase) query.type = consumableBase(item.baseType);
-  } else if (useBase) {
+    if (baseScope === "exact") query.type = consumableBase(item.baseType);
+  } else if (baseScope === "exact") {
     query.type = tradeBaseType(item.baseType);
   }
 
+  // Vestigial is an official misc filter, independent of the base and rarity.
+  // Without it, a unique-name search mixes ordinary, synthesised and Vestigial
+  // copies and can return a completely different implicit.
+  if (game === "poe1" && item.vestigial) {
+    const miscFilters = query.filters.misc_filters ?? { filters: {} };
+    miscFilters.filters.vestigial = { option: "true" };
+    query.filters.misc_filters = miscFilters;
+    strategyParts.push("Vestigial");
+  }
+
+  if (baseScope === "slot") {
+    const category = tradeCategory(game, item);
+    if (category) {
+      const typeFilters = query.filters.type_filters ?? { filters: {} };
+      typeFilters.filters.category = { option: category };
+      query.filters.type_filters = typeFilters;
+      strategyParts.push("same slot/class");
+    }
+  } else if (baseScope === "exact" && item.rarity !== "unique") {
+    strategyParts.push("exact base");
+  }
+
   // Equipment filters: armour defences + weapon DPS, routed to the right group.
-  const equipment = overrides?.equipment ?? (await autoComputed(game, item, factor));
   const armourKey = getGame(game).equipmentFilterKey;
   const weaponKey = getGame(game).weaponFilterKey;
   const byKey: Record<string, Record<string, { min?: number; max?: number }>> = {};
@@ -603,8 +735,29 @@ export async function buildItemQuery(
   if (hasArmour) strategyParts.push("defences");
   if (hasWeapon) strategyParts.push("DPS");
 
-  // Pseudo "total" aggregate filters (off by default; user opts in).
-  const pseudo = overrides?.pseudo ?? computePseudoFilters(item.mods, factor);
+  // Socket constraints are opt-in. The original socket string is surfaced in
+  // the dialog, but buying an unlinked base is usually cheaper.
+  if (game === "poe1" && (socket.links !== null || socket.sockets !== null)) {
+    const socketFilters: Record<string, { min: number }> = {};
+    if (socket.links !== null) socketFilters.links = { min: socket.links };
+    if (socket.sockets !== null) socketFilters.sockets = { min: socket.sockets };
+    query.filters.socket_filters = { filters: socketFilters };
+    strategyParts.push(
+      [socket.links !== null ? `${socket.links}L` : "", socket.sockets !== null ? `${socket.sockets}S` : ""]
+        .filter(Boolean)
+        .join("/"),
+    );
+  }
+  if (game === "poe2" && socket.runeSockets !== null) {
+    const key = getGame(game).equipmentFilterKey;
+    const current = query.filters[key] ?? { filters: {} };
+    current.filters.rune_sockets = { min: socket.runeSockets };
+    query.filters[key] = current;
+    strategyParts.push(`${socket.runeSockets} augment sockets`);
+  }
+
+  // Pseudo totals replace their raw source filters above rather than stacking
+  // on top of them. They remain default-off and explicitly user-selected.
   const pseudoStatFilters: TradeStatFilter[] = [];
   for (const p of pseudo) {
     if (!p.include) continue;
@@ -620,27 +773,9 @@ export async function buildItemQuery(
     strategyParts.push(`${pseudoStatFilters.length} total${pseudoStatFilters.length === 1 ? "" : "s"}`);
   }
 
-  // Influence flags (Shaper/Elder/… items): required for rares searched by
-  // their influenced mods; harmless identity constraint otherwise.
-  const INFLUENCE_KEYS: Record<string, string> = {
-    Shaper: "shaper_item",
-    Elder: "elder_item",
-    Crusader: "crusader_item",
-    Hunter: "hunter_item",
-    Redeemer: "redeemer_item",
-    Warlord: "warlord_item",
-    "Searing Exarch": "searing_item",
-    "Eater of Worlds": "tangled_item",
-  };
-  if (item.influences && item.influences.length > 0 && item.rarity !== "unique") {
-    const misc = query.filters.misc_filters ?? { filters: {} };
-    for (const inf of item.influences) {
-      const key = INFLUENCE_KEYS[inf];
-      if (key) misc.filters[key] = { option: true };
-    }
-    query.filters.misc_filters = misc;
-    strategyParts.push(item.influences.join("+"));
-  }
+  // Influence is a means to roll a mod, not part of the replacement item's
+  // identity. The matched stat itself is enough; requiring the original
+  // influence narrows equivalent/cheaper results for no benefit.
 
   // (Buy-out is handled by status `securable` above for both games.)
 
@@ -658,7 +793,8 @@ export async function buildItemQuery(
     filters,
     equipment,
     pseudo,
-    useBase,
-    strategy: strategyParts.join(" · ") || (useBase ? "base type only" : "any item"),
+    baseScope,
+    socket,
+    strategy: strategyParts.join(" · ") || (baseScope === "exact" ? "base type only" : "any item"),
   };
 }

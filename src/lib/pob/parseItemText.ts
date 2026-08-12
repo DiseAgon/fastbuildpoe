@@ -1,4 +1,4 @@
-import type { ModAffix, ModType, ParsedItem, ParsedMod, Rarity } from "@/types/item";
+import type { ModAffix, ModSource, ModType, ParsedItem, ParsedMod, Rarity } from "@/types/item";
 import { categorize } from "./categorize";
 
 /**
@@ -103,7 +103,7 @@ const META_KEYS = new Set([
 /** Standalone flag lines that are item properties, not mods. */
 const INFLUENCE_LINE =
   /^(Shaper|Elder|Crusader|Hunter|Redeemer|Warlord|Searing Exarch|Eater of Worlds) Item$/i;
-const FLAG_LINE = /^(Synthesised Item|Fractured Item|Mirrored|Split|Foil Unique(?: \([^)]*\))?)$/i;
+const FLAG_LINE = /^(Synthesised Item|Fractured Item|Vestigial Item|Mirrored|Split|Foil Unique(?: \([^)]*\))?)$/i;
 /**
  * Class restriction. PoB writes it both above the `Implicits:` count and as a
  * mod line below it, and it is counted in neither — treating it as a mod ended
@@ -173,6 +173,13 @@ function detectAffix(annotations: string[]): ModAffix | undefined {
   return undefined;
 }
 
+function detectModSource(annotations: string[]): ModSource | undefined {
+  if (annotations.includes("exarch")) return "searing";
+  if (annotations.includes("eater")) return "eater";
+  if (annotations.includes("vestigial")) return "vestigial";
+  return undefined;
+}
+
 function toMod(line: string, isImplicit: boolean): ParsedMod {
   const annotations = extractAnnotations(line);
   const stripped = line.replace(ANNOTATION, "").trim();
@@ -185,6 +192,7 @@ function toMod(line: string, isImplicit: boolean): ParsedMod {
     values,
     type: detectModType(annotations, isImplicit),
     affix: detectAffix(annotations),
+    source: detectModSource(annotations),
   };
 }
 
@@ -228,7 +236,10 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
   while (
     cursor < body.length &&
     asMeta(body[cursor]) === null &&
-    !META_SHAPED.test(body[cursor].replace(ANNOTATION, "").trim())
+    !META_SHAPED.test(body[cursor].replace(ANNOTATION, "").trim()) &&
+    !INFLUENCE_LINE.test(body[cursor].replace(ANNOTATION, "").trim()) &&
+    !FLAG_LINE.test(body[cursor].replace(ANNOTATION, "").trim()) &&
+    !CLASS_REQUIREMENT_LINE.test(body[cursor].replace(ANNOTATION, "").trim())
   ) {
     heading.push(body[cursor].replace(ANNOTATION, "").trim());
     cursor++;
@@ -238,6 +249,14 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
   const name = heading[0];
   let baseType =
     hasSeparateName && heading.length > 1 ? heading[1] : heading[0];
+  // Curse of the Allflame displays the transformed base as, for example,
+  // "Vestigial Sage's Robe". The official trade `type` remains "Sage's Robe"
+  // and exposes Vestigial as a separate misc filter, so keep the property and
+  // normalize the base before categorisation/searching.
+  const vestigial =
+    /^vestigial\s+/i.test(baseType) ||
+    body.some((line) => /^vestigial item$/i.test(line.replace(ANNOTATION, "").trim()));
+  if (vestigial) baseType = baseType.replace(/^vestigial\s+/i, "");
   // Magic items carry affixes in their single name line ("Turquoise Amulet of
   // the Fox"). Strip the "of …" suffix so trade `type` gets a real base type.
   if (rarity === "magic") baseType = baseType.replace(/\s+of\s+.+$/i, "");
@@ -368,6 +387,22 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
     if (!isCrucible) modIndex++;
   }
 
+  // Current PoB writes `{exarch}` / `{eater}` on the exact implicit line. Old
+  // exports may only carry the item-level influence flags; in that case all
+  // implicit lines on this rare armour are treated conservatively as Eldritch
+  // so they do not become accidental default requirements.
+  const hasEldritchInfluence = influences.some(
+    (influence) => influence === "Searing Exarch" || influence === "Eater of Worlds",
+  );
+  const hasTaggedEldritch = mods.some(
+    (mod) => mod.source === "searing" || mod.source === "eater",
+  );
+  if (rarity === "rare" && hasEldritchInfluence && !hasTaggedEldritch) {
+    for (const mod of mods) {
+      if (mod.type === "implicit") mod.source = "eldritch";
+    }
+  }
+
   return {
     raw,
     rarity,
@@ -381,6 +416,7 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
     levelReq,
     defences: Object.keys(defences).length > 0 ? defences : undefined,
     influences: influences.length > 0 ? influences : undefined,
+    vestigial: vestigial || undefined,
     corrupted,
     mods,
     unparsed,

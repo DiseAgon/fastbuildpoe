@@ -18,6 +18,7 @@ import type { TradeMeta } from "@/lib/trade/meta";
 import { decodeEmbeddedPrices, decodeShare, type SharePayload } from "@/lib/share";
 import { clearGameDraft, draftHasWork, loadDraft, saveDraft } from "@/lib/draft";
 import { itemKey } from "@/lib/build/itemKey";
+import { clearGameTradeSelections } from "@/lib/trade/selectionSession";
 import { sumPrices } from "@/lib/build/price";
 import { useBuildPrices } from "@/hooks/useBuildPrices";
 import { SavedPanel } from "@/components/SavedPanel";
@@ -273,6 +274,7 @@ export default function Home() {
     importController.current = null;
     importSequence.current += 1;
     clearGameDraft(game);
+    clearGameTradeSelections(game);
     setBuilds((prev) => ({ ...prev, [game]: null }));
     setActiveSetIds((prev) => ({ ...prev, [game]: "" }));
     setInputs((prev) => ({ ...prev, [game]: "" }));

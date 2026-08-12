@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "snapshot": "node scripts/snapshot.mjs"
+    "snapshot": "node scripts/snapshot.mjs",
+    "snapshot:weapons": "node scripts/snapshot.mjs --weapons-only"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

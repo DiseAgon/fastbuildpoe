@@ -28,6 +28,10 @@ interface ApiItem {
   ilvl?: number;
   frameType?: number;
   corrupted?: boolean;
+  vestigial?: boolean;
+  searing?: boolean;
+  tangled?: boolean;
+  influences?: Record<string, boolean>;
   inventoryId?: string;
   properties?: ApiProperty[];
   implicitMods?: string[];
@@ -94,9 +98,9 @@ function slotName(inventoryId: string | undefined, x: number): string | undefine
   }
 }
 
-function toMod(text: string, type: ModType): ParsedMod {
+function toMod(text: string, type: ModType, source?: ParsedMod["source"]): ParsedMod {
   const values = (text.match(NUMBER) ?? []).map(Number);
-  return { text, template: text.replace(NUMBER, "#"), values, type };
+  return { text, template: text.replace(NUMBER, "#"), values, type, source };
 }
 
 function propValue(props: ApiProperty[] | undefined, name: string): number | undefined {
@@ -109,13 +113,23 @@ function propValue(props: ApiProperty[] | undefined, name: string): number | und
 
 function parseApiItem(item: ApiItem, x = 0): ParsedItem {
   const rarity = FRAME_RARITY[item.frameType ?? 0] ?? "normal";
-  const baseType = item.baseType || item.typeLine || "";
+  const vestigial = !!item.vestigial || /^vestigial\s+/i.test(item.typeLine ?? "");
+  const baseType = (item.baseType || item.typeLine || "").replace(/^vestigial\s+/i, "");
   const slot = slotName(item.inventoryId, x);
   const name = item.name || item.typeLine || baseType;
+  const implicitSource: ParsedMod["source"] | undefined = vestigial
+    ? "vestigial"
+    : item.searing && item.tangled
+      ? "eldritch"
+      : item.searing
+        ? "searing"
+        : item.tangled
+          ? "eater"
+          : undefined;
 
   const mods: ParsedMod[] = [
     ...(item.enchantMods ?? []).map((m) => toMod(m, "enchant")),
-    ...(item.implicitMods ?? []).map((m) => toMod(m, "implicit")),
+    ...(item.implicitMods ?? []).map((m) => toMod(m, "implicit", implicitSource)),
     ...(item.fracturedMods ?? []).map((m) => toMod(m, "fractured")),
     ...(item.explicitMods ?? []).map((m) => toMod(m, "explicit")),
     ...(item.craftedMods ?? []).map((m) => toMod(m, "crafted")),
@@ -130,6 +144,20 @@ function parseApiItem(item: ApiItem, x = 0): ParsedItem {
     ward: propValue(item.properties, "Ward"),
   };
   const hasDefence = Object.values(defences).some((v) => v && v > 0);
+  const influenceNames: Record<string, string> = {
+    shaper: "Shaper",
+    elder: "Elder",
+    crusader: "Crusader",
+    hunter: "Hunter",
+    redeemer: "Redeemer",
+    warlord: "Warlord",
+  };
+  const influences = Object.entries(item.influences ?? {})
+    .filter(([, enabled]) => enabled)
+    .map(([key]) => influenceNames[key])
+    .filter((name): name is string => !!name);
+  if (item.searing) influences.push("Searing Exarch");
+  if (item.tangled) influences.push("Eater of Worlds");
 
   return {
     raw: name,
@@ -142,6 +170,8 @@ function parseApiItem(item: ApiItem, x = 0): ParsedItem {
     quality: propValue(item.properties, "Quality"),
     sockets: undefined,
     defences: hasDefence ? defences : undefined,
+    influences: influences.length > 0 ? influences : undefined,
+    vestigial: vestigial || undefined,
     corrupted: !!item.corrupted,
     mods,
     unparsed: [],

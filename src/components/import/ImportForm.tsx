@@ -54,7 +54,7 @@ export function ImportForm({
           onClick={onClear}
           disabled={!canClear}
           className="rounded-[var(--radius)] border border-border bg-surface px-4 py-3 text-sm text-muted transition-colors duration-[var(--duration-fast)] hover:border-danger/50 hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
-          title="Clear this game's active build, input and prices"
+          title="Clear this game's active build, input, prices and per-item trade settings; Saved builds are kept"
         >
           Clear session
         </button>

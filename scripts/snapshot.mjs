@@ -30,7 +30,7 @@ const POB_REPO = {
 };
 const WEAPON_FILES = [
   "axe", "bow", "claw", "crossbow", "dagger", "flail", "mace", "spear",
-  "staff", "sword", "oneswd", "twoswd", "onemace", "twomace", "oneaxe", "twoaxe",
+  "staff", "sword", "wand", "oneswd", "twoswd", "onemace", "twomace", "oneaxe", "twoaxe",
 ];
 
 function luaNum(block, key) {
@@ -38,9 +38,44 @@ function luaNum(block, key) {
   return m ? Number(m[1]) : null;
 }
 
+const TRADE_CATEGORY_BY_CLASS = {
+  Bow: "weapon.bow",
+  Claw: "weapon.claw",
+  Crossbow: "weapon.crossbow",
+  Dagger: "weapon.dagger",
+  Flail: "weapon.flail",
+  Spear: "weapon.spear",
+  Wand: "weapon.wand",
+  "One Handed Axe": "weapon.oneaxe",
+  "One Hand Axe": "weapon.oneaxe",
+  "Two Handed Axe": "weapon.twoaxe",
+  "Two Hand Axe": "weapon.twoaxe",
+  "One Handed Mace": "weapon.onemace",
+  "One Hand Mace": "weapon.onemace",
+  "Two Handed Mace": "weapon.twomace",
+  "Two Hand Mace": "weapon.twomace",
+  "One Handed Sword": "weapon.onesword",
+  "One Hand Sword": "weapon.onesword",
+  "Two Handed Sword": "weapon.twosword",
+  "Two Hand Sword": "weapon.twosword",
+  Sceptre: "weapon.sceptre",
+};
+
+function weaponTradeCategory(itemClass, itemSubClass) {
+  // These trade categories are encoded as PoB subtypes rather than top-level
+  // classes. This is what distinguishes Staff/Warstaff, Dagger/Rune Dagger and
+  // Sword/Thrusting Sword without guessing from a base name.
+  if (itemSubClass === "Warstaff") return "weapon.warstaff";
+  if (itemSubClass === "Rune Dagger") return "weapon.runedagger";
+  if (itemSubClass === "Thrusting") return "weapon.rapier";
+  if (itemClass === "Staff") return "weapon.staff";
+  return TRADE_CATEGORY_BY_CLASS[itemClass] ?? null;
+}
+
 async function snapshotWeapons(game) {
   const repo = POB_REPO[game];
   const bases = {};
+  const classes = {};
   for (const file of WEAPON_FILES) {
     let text;
     try {
@@ -57,17 +92,37 @@ async function snapshotWeapons(game) {
       const nameEnd = chunk.indexOf('"]');
       if (nameEnd === -1) continue;
       const name = chunk.slice(0, nameEnd);
+      const itemClass = chunk.match(/\btype\s*=\s*"([^"]+)"/)?.[1];
+      const itemSubClass = chunk.match(/\bsubType\s*=\s*"([^"]+)"/)?.[1];
       const wm = chunk.match(/weapon\s*=\s*\{([^}]*)\}/);
+      if (!itemClass) continue;
+      const tradeCategory = weaponTradeCategory(itemClass, itemSubClass);
+      if (!tradeCategory) {
+        console.warn(`${game}: unknown weapon class ${itemClass} (${name})`);
+        continue;
+      }
+      classes[name] = { itemClass, ...(itemSubClass ? { itemSubClass } : {}), tradeCategory };
+      // Spell-only Staff/Wand bases still need class metadata for a slot search,
+      // but have no local attack stats and therefore no DPS record.
       if (!wm) continue;
       const physMin = luaNum(wm[1], "PhysicalMin");
       const physMax = luaNum(wm[1], "PhysicalMax");
       const aps = luaNum(wm[1], "AttackRateBase");
       const crit = luaNum(wm[1], "CritChanceBase");
       if (physMin === null || physMax === null || aps === null) continue;
-      bases[name] = { physMin, physMax, aps, crit: crit ?? 0 };
+      bases[name] = {
+        physMin,
+        physMax,
+        aps,
+        crit: crit ?? 0,
+        itemClass,
+        ...(itemSubClass ? { itemSubClass } : {}),
+        tradeCategory,
+      };
     }
   }
   writeFileSync(join(OUT, `weapons.${game}.json`), JSON.stringify(bases));
+  writeFileSync(join(OUT, `weaponclasses.${game}.json`), JSON.stringify(classes));
   return Object.keys(bases).length;
 }
 
@@ -79,6 +134,16 @@ async function getJson(url) {
 
 function pickDefaultLeague(leagues) {
   return leagues.find((l) => !/hardcore|ruthless|standard|ssf|\bhc\b/i.test(l)) ?? leagues[0] ?? "Standard";
+}
+
+const weaponsOnly = process.argv.includes("--weapons-only");
+
+if (weaponsOnly) {
+  for (const game of Object.keys(GAMES)) {
+    const weaponCount = await snapshotWeapons(game);
+    console.log(`${game}: ${weaponCount} weapon bases`);
+  }
+  process.exit(0);
 }
 
 for (const [game, base] of Object.entries(GAMES)) {

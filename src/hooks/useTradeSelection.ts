@@ -5,22 +5,25 @@ import type { GameId } from "@/lib/game/registry";
 import type { ParsedItem } from "@/types/item";
 import type {
   BandInfo,
+  BaseScope,
   EditableFilter,
   EquipmentFilter,
   FilterGroup,
   PseudoFilter,
   StatBand,
 } from "@/lib/trade/queryBuilder";
+import type { SocketOptions } from "@/lib/trade/socketOptions";
 import { clampRollPercent, DEFAULT_ROLL_PERCENT } from "@/lib/trade/roll";
+import { pseudoCoversFilter } from "@/lib/trade/pseudo";
+import {
+  loadTradeSelection,
+  saveTradeSelection,
+  type SessionTradeSelection,
+} from "@/lib/trade/selectionSession";
 
-export interface TradeSelection {
-  filters: EditableFilter[];
+export interface TradeSelection extends SessionTradeSelection {
   /** Per-band "match any N" overrides; absent bands use the mode's default. */
   bandMins: Partial<Record<StatBand, number>>;
-  equipment: EquipmentFilter[];
-  pseudo: PseudoFilter[];
-  buyout: boolean;
-  useBase: boolean;
 }
 
 /**
@@ -29,7 +32,7 @@ export interface TradeSelection {
  * caller falls back to what it asked for. Trusting them blindly put `undefined`
  * into a checkbox's `checked` and flipped it from controlled to uncontrolled.
  */
-export interface TradeLinkData extends Omit<TradeSelection, "buyout" | "useBase" | "bandMins"> {
+export interface TradeLinkData extends Omit<TradeSelection, "buyout" | "baseScope" | "socket" | "bandMins"> {
   url: string;
   league: string;
   matched: number;
@@ -38,7 +41,8 @@ export interface TradeLinkData extends Omit<TradeSelection, "buyout" | "useBase"
   /** Pools present on this item with their resolved thresholds. */
   bands: BandInfo[];
   buyout?: boolean;
-  useBase?: boolean;
+  baseScope?: BaseScope;
+  socket?: SocketOptions;
 }
 
 export interface TradeSelectionState {
@@ -47,8 +51,8 @@ export interface TradeSelectionState {
   setRoll: (roll: number) => void;
   sel: TradeSelection;
   update: (patch: Partial<TradeSelection>) => void;
-  /** Toggle one mod in or out of the search, restoring its previous group. */
-  toggleFilter: (index: number, include: boolean) => void;
+  /** Select a pseudo as a replacement, switching covered source mods off. */
+  togglePseudo: (index: number, include: boolean) => void;
   data: TradeLinkData | null;
   loading: boolean;
   error: string | null;
@@ -56,14 +60,17 @@ export interface TradeSelectionState {
   filterIndexByMod: number[];
 }
 
-const EMPTY: TradeSelection = {
-  filters: [],
-  bandMins: {},
-  equipment: [],
-  pseudo: [],
-  buyout: true,
-  useBase: true,
-};
+function emptySelection(item: ParsedItem): TradeSelection {
+  return {
+    filters: [],
+    bandMins: {},
+    equipment: [],
+    pseudo: [],
+    buyout: true,
+    baseScope: item.rarity === "unique" ? "any" : "exact",
+    socket: { links: null, sockets: null, runeSockets: null },
+  };
+}
 
 /**
  * Line up displayed mods with the filters built from them.
@@ -118,12 +125,8 @@ function carryOverInclude<T extends { include: boolean }, K extends keyof T>(
 }
 
 /**
- * Owns the trade-search selection for one item: the mode, the per-mod filters,
- * and the debounced rebuild of the trade URL.
- *
- * Lifted out of the trade controls so the item's mod list can render a checkbox
- * per mod against the same state — picking mods is the common case and belongs
- * next to the mods, not behind a panel.
+ * Owns the complete trade-search selection for one item and the debounced
+ * rebuild of its official-trade URL.
  */
 export function useTradeSelection(
   game: GameId,
@@ -131,18 +134,27 @@ export function useTradeSelection(
   item: ParsedItem,
 ): TradeSelectionState {
   const [roll, setRollState] = useState<number>(DEFAULT_ROLL_PERCENT);
-  const [sel, setSel] = useState<TradeSelection>(EMPTY);
+  const [sel, setSel] = useState<TradeSelection>(() => emptySelection(item));
   const [data, setData] = useState<TradeLinkData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** Last non-off group per filter index, so re-checking restores intent. */
-  const lastGroup = useRef<Map<number, FilterGroup>>(new Map());
+  const requestSequence = useRef(0);
+  /** Original raw-mod groups hidden by an active pseudo replacement. */
+  const pseudoSourceGroups = useRef<Map<string, FilterGroup>>(new Map());
   /** Distinguishes "the roll moved" from "a different item" on a re-seed. */
-  const itemRef = useRef(item);
+  const itemRef = useRef<ParsedItem | null>(null);
+
+  const persist = useCallback(
+    (nextRoll: number, nextSelection: TradeSelection) => {
+      saveTradeSelection(game, item, nextRoll, nextSelection, pseudoSourceGroups.current);
+    },
+    [game, item],
+  );
 
   const fetchLink = useCallback(
     async (payload: Partial<TradeSelection>): Promise<TradeLinkData | null> => {
+      const sequence = ++requestSequence.current;
       setLoading(true);
       setError(null);
       try {
@@ -152,20 +164,30 @@ export function useTradeSelection(
           body: JSON.stringify({ game, roll, league: league ?? undefined, item, ...payload }),
         });
         const json = await res.json();
+        if (sequence !== requestSequence.current) return null;
         if (json.success && json.data) return json.data as TradeLinkData;
         setError(json.error ?? "Failed to build link.");
         return null;
       } catch {
-        setError("Could not reach the server.");
+        if (sequence === requestSequence.current) {
+          setError("Could not reach the server.");
+        }
         return null;
       } finally {
-        setLoading(false);
+        if (sequence === requestSequence.current) setLoading(false);
       }
     },
     [game, roll, league, item],
   );
 
-  const setRoll = useCallback((next: number) => setRollState(clampRollPercent(next)), []);
+  const setRoll = useCallback(
+    (next: number) => {
+      const clamped = clampRollPercent(next);
+      setRollState(clamped);
+      persist(clamped, sel);
+    },
+    [persist, sel],
+  );
 
   /**
    * Re-seed from the server when the item, game, league or roll changes.
@@ -181,69 +203,159 @@ export function useTradeSelection(
     let cancelled = false;
     const sameItem = itemRef.current === item;
     itemRef.current = item;
-    const asked = { buyout: sel.buyout, useBase: sel.useBase };
+    const defaults = emptySelection(item);
+    const stored = sameItem ? null : loadTradeSelection(game, item);
+    if (!sameItem) {
+      setData(null);
+      pseudoSourceGroups.current = new Map(Object.entries(stored?.replacementGroups ?? {}));
+      const targetRoll = clampRollPercent(stored?.roll ?? DEFAULT_ROLL_PERCENT);
+      if (targetRoll !== roll) {
+        setSel(stored?.selection ?? defaults);
+        setRollState(targetRoll);
+        return () => {
+          cancelled = true;
+          requestSequence.current += 1;
+        };
+      }
+    }
+    const restoredSelection = stored?.selection;
+    const asked: Partial<TradeSelection> = restoredSelection ?? (sameItem
+      ? { buyout: sel.buyout, baseScope: sel.baseScope, socket: sel.socket }
+      : { buyout: defaults.buyout, baseScope: defaults.baseScope, socket: defaults.socket });
 
     const timer = setTimeout(() => {
       void fetchLink(asked).then((d) => {
         if (cancelled || !d) return;
-        if (!sameItem) lastGroup.current = new Map();
-        setSel((prev) => ({
-          filters: sameItem ? carryOverFilters(prev.filters, d.filters) : d.filters,
-          bandMins: sameItem ? prev.bandMins : {},
-          equipment: sameItem ? carryOverInclude(prev.equipment, d.equipment, "field") : d.equipment,
-          pseudo: sameItem ? carryOverInclude(prev.pseudo, d.pseudo, "statId") : d.pseudo,
+        const preserve = sameItem || !!restoredSelection;
+        const next: TradeSelection = {
+          filters: sameItem ? carryOverFilters(sel.filters, d.filters) : d.filters,
+          bandMins: preserve ? (restoredSelection?.bandMins ?? sel.bandMins) : {},
+          equipment: sameItem ? carryOverInclude(sel.equipment, d.equipment, "field") : d.equipment,
+          pseudo: sameItem ? carryOverInclude(sel.pseudo, d.pseudo, "statId") : d.pseudo,
           // Fall back to what we asked for; the response may omit these.
-          buyout: d.buyout ?? asked.buyout,
-          useBase: d.useBase ?? asked.useBase,
-        }));
-        setData(d);
+          buyout: d.buyout ?? asked.buyout ?? true,
+          baseScope: d.baseScope ?? asked.baseScope ?? defaults.baseScope,
+          socket: d.socket ?? asked.socket ?? defaults.socket,
+        };
+        setSel(next);
+        persist(roll, next);
+        if (!sameItem) {
+          setData(d);
+          return;
+        }
+        // The seed carries fresh roll-derived minimums. Rebuild once with the
+        // user's preserved choices so the URL and visible controls agree.
+        void fetchLink(next).then((rebuilt) => {
+          if (cancelled || !rebuilt) return;
+          setData(rebuilt);
+          const canonical: TradeSelection = {
+            ...next,
+            filters: rebuilt.filters,
+            equipment: rebuilt.equipment,
+            pseudo: rebuilt.pseudo,
+            baseScope: rebuilt.baseScope ?? next.baseScope,
+            socket: rebuilt.socket ?? next.socket,
+          };
+          setSel(canonical);
+          persist(roll, canonical);
+        });
       });
     }, RESEED_DELAY_MS);
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      if (debounce.current) {
+        clearTimeout(debounce.current);
+        debounce.current = null;
+      }
+      // Ignore any response that belongs to the previous item/roll/league.
+      requestSequence.current += 1;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game, league, roll, item]);
 
   const update = useCallback(
     (patch: Partial<TradeSelection>) => {
-      setSel((prev) => {
-        const next = { ...prev, ...patch };
-        if (debounce.current) clearTimeout(debounce.current);
-        debounce.current = setTimeout(() => {
-          void fetchLink(next).then((d) => {
-            if (d) setData(d);
-          });
-        }, 300);
-        return next;
-      });
+      const next = { ...sel, ...patch };
+      setSel(next);
+      persist(roll, next);
+      if (debounce.current) clearTimeout(debounce.current);
+      debounce.current = setTimeout(() => {
+        void fetchLink(next).then((d) => {
+          if (!d) return;
+          setData(d);
+          const canonical: TradeSelection = {
+            ...next,
+            filters: d.filters,
+            equipment: d.equipment,
+            pseudo: d.pseudo,
+            baseScope: d.baseScope ?? next.baseScope,
+            socket: d.socket ?? next.socket,
+          };
+          setSel(canonical);
+          persist(roll, canonical);
+        });
+      }, 300);
     },
-    [fetchLink],
+    [fetchLink, persist, roll, sel],
   );
 
-  const toggleFilter = useCallback(
+  const togglePseudo = useCallback(
     (index: number, include: boolean) => {
-      setSel((prev) => {
-        const current = prev.filters[index];
-        if (!current) return prev;
-        if (!include && current.group !== "off") lastGroup.current.set(index, current.group);
-        const group: FilterGroup = include
-          ? (lastGroup.current.get(index) ?? "and")
-          : "off";
-        const filters = prev.filters.map((f, i) => (i === index ? { ...f, group } : f));
-        const next = { ...prev, filters };
-        if (debounce.current) clearTimeout(debounce.current);
-        debounce.current = setTimeout(() => {
-          void fetchLink(next).then((d) => {
-            if (d) setData(d);
-          });
-        }, 300);
-        return next;
+      const target = sel.pseudo[index];
+      if (!target) return;
+      const previouslyActive = sel.pseudo.filter((row) => row.include);
+      const pseudo = sel.pseudo.map((row, i) => ({
+        ...row,
+        include:
+          i === index
+            ? include
+            : include && target.family && row.family === target.family
+              ? false
+              : row.include,
+      }));
+      const newlyActive = pseudo.filter((row) => row.include);
+      const filters = sel.filters.map((filter, filterIndex) => {
+        const wasCovered = previouslyActive.some((row) =>
+          pseudoCoversFilter(row.statId, filter.statId),
+        );
+        const isCovered = newlyActive.some((row) =>
+          pseudoCoversFilter(row.statId, filter.statId),
+        );
+        const key = `${filterIndex}\0${filter.statId}\0${filter.text}`;
+        if (isCovered) {
+          if (filter.group !== "off" && !pseudoSourceGroups.current.has(key)) {
+            pseudoSourceGroups.current.set(key, filter.group);
+          }
+          return { ...filter, group: "off" as const };
+        }
+        if (wasCovered) {
+          const original = pseudoSourceGroups.current.get(key);
+          pseudoSourceGroups.current.delete(key);
+          if (original) return { ...filter, group: original };
+        }
+        return filter;
       });
+      const next = { ...sel, pseudo, filters };
+      setSel(next);
+      persist(roll, next);
+      if (debounce.current) clearTimeout(debounce.current);
+      debounce.current = setTimeout(() => {
+        void fetchLink(next).then((d) => {
+          if (!d) return;
+          setData(d);
+          const canonical: TradeSelection = {
+            ...next,
+            filters: d.filters,
+            pseudo: d.pseudo,
+          };
+          setSel(canonical);
+          persist(roll, canonical);
+        });
+      }, 300);
     },
-    [fetchLink],
+    [fetchLink, persist, roll, sel],
   );
 
   return {
@@ -251,7 +363,7 @@ export function useTradeSelection(
     setRoll,
     sel,
     update,
-    toggleFilter,
+    togglePseudo,
     data,
     loading,
     error,

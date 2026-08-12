@@ -8,8 +8,8 @@
  * A single axis says exactly one thing: a filter's minimum is this share of
  * what the item has.
  *
- * 100% means "at least as good as this item". 0% removes the roll floor
- * entirely and searches on the mods alone.
+ * 100% means "at least as good as this item". Values up to 120% search for an
+ * upgrade. 0% removes the roll floor entirely and searches on the mods alone.
  *
  * Lives apart from `queryBuilder` so the client can import the default without
  * pulling the stat index and its data files into the browser bundle.
@@ -17,7 +17,7 @@
 export const DEFAULT_ROLL_PERCENT = 80;
 
 export const MIN_ROLL_PERCENT = 0;
-export const MAX_ROLL_PERCENT = 100;
+export const MAX_ROLL_PERCENT = 120;
 
 /** Slider granularity — fine enough to tune, coarse enough to hit by mouse. */
 export const ROLL_PERCENT_STEP = 5;

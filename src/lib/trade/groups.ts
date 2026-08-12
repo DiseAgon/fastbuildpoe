@@ -117,4 +117,19 @@ export const MOD_FAMILIES: ModFamily[] = [
       "Commissioned # coins to commemorate Chitus",
     ],
   },
+  // Curse of the Allflame's unique Abyss jewels use the same seed semantics as
+  // Timeless Jewels: changing the number changes the conquered passive tree.
+  // Keep the seed exact and expose the other conquerors as optional siblings.
+  {
+    key: "timeless-abyss",
+    label: "Abyssal Timeless Jewel",
+    exact: true,
+    texts: [
+      "Subjugating # souls in the thrall of Amanamu",
+      "Subjugating # souls in the thrall of Kurgal",
+      "Subjugating # souls in the thrall of Ulaman",
+      "Subjugating # souls in the thrall of Tecrod",
+      "Binding # souls to phylacteries to sustain Zorath",
+    ],
+  },
 ];
