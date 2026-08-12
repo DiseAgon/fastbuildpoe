@@ -4,10 +4,14 @@ import { useState } from "react";
 
 export function ImportForm({
   onImport,
+  onClear,
+  canClear,
   loading,
   initialValue = "",
 }: {
   onImport: (input: string) => void;
+  onClear: () => void;
+  canClear: boolean;
   loading: boolean;
   /** Pre-fills the field when a build is restored from autosave or a share link. */
   initialValue?: string;
@@ -44,6 +48,15 @@ export function ImportForm({
           className="rounded-[var(--radius)] border border-accent/60 bg-accent/10 px-6 py-3 font-medium text-accent transition-colors duration-[var(--duration-fast)] hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {loading ? "Importing…" : "Import build"}
+        </button>
+        <button
+          type="button"
+          onClick={onClear}
+          disabled={!canClear}
+          className="rounded-[var(--radius)] border border-border bg-surface px-4 py-3 text-sm text-muted transition-colors duration-[var(--duration-fast)] hover:border-danger/50 hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
+          title="Clear this game's active build, input and prices"
+        >
+          Clear session
         </button>
       </div>
     </form>

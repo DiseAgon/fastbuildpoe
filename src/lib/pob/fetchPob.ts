@@ -37,7 +37,10 @@ function cacheSet(id: string, body: string): void {
   pasteCache.set(id, { body, expires: Date.now() + PASTE_CACHE_TTL_MS });
 }
 
-export async function resolvePobInput(input: string): Promise<string> {
+export async function resolvePobInput(
+  input: string,
+  options: { bypassCache?: boolean } = {},
+): Promise<string> {
   const trimmed = input.trim();
   if (!trimmed) {
     throw new Error("No build link or code provided.");
@@ -45,20 +48,24 @@ export async function resolvePobInput(input: string): Promise<string> {
 
   const urlMatch = trimmed.match(POBBIN_URL);
   if (urlMatch) {
-    return fetchPobbinRaw(urlMatch[1]);
+    return fetchPobbinRaw(urlMatch[1], options.bypassCache);
   }
 
   // Short, link-shaped tokens are treated as pobb.in ids; long strings are raw codes.
   if (BARE_ID.test(trimmed)) {
-    return fetchPobbinRaw(trimmed);
+    return fetchPobbinRaw(trimmed, options.bypassCache);
   }
 
   return trimmed;
 }
 
-async function fetchPobbinRaw(id: string): Promise<string> {
-  const cached = cacheGet(id);
-  if (cached) return cached;
+async function fetchPobbinRaw(id: string, bypassCache = false): Promise<string> {
+  if (bypassCache) {
+    pasteCache.delete(id);
+  } else {
+    const cached = cacheGet(id);
+    if (cached) return cached;
+  }
 
   let res: Response;
   // pobb.in fetches from a datacenter IP (Vercel) are occasionally flaky;

@@ -70,6 +70,39 @@ export function clearDraft(): void {
   }
 }
 
+/**
+ * Remove one game's working session while preserving the other game's draft.
+ *
+ * This writes directly instead of going through `saveDraft`: that function
+ * intentionally refuses to overwrite a non-empty draft with an empty one,
+ * whereas clearing is the explicit user action that must be allowed to do so.
+ */
+export function clearGameDraft(game: GameId): void {
+  try {
+    const draft = loadDraft();
+    if (!draft) return;
+
+    const next: Draft = {
+      ...draft,
+      savedAt: Date.now(),
+      inputs: { ...draft.inputs, [game]: undefined },
+      setIds: { ...draft.setIds, [game]: undefined },
+      leagues: { ...draft.leagues, [game]: undefined },
+      prices: Object.fromEntries(
+        Object.entries(draft.prices).filter(([key]) => !key.startsWith(`${game}|`)),
+      ),
+    };
+
+    if (draftHasWork(next)) {
+      localStorage.setItem(KEY, JSON.stringify(next));
+    } else {
+      localStorage.removeItem(KEY);
+    }
+  } catch {
+    /* unavailable or malformed storage — clearing is best-effort */
+  }
+}
+
 /** True when there is anything worth restoring. */
 export function draftHasWork(draft: Draft): boolean {
   const hasInput = Object.values(draft.inputs).some((v) => !!v);

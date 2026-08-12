@@ -13,6 +13,8 @@ export const runtime = "nodejs";
 
 const RequestBody = z.object({
   input: z.string().min(1, "Provide a pobb.in link or PoB code.").max(200_000),
+  /** Manual imports request a fresh pobb.in copy; restores may use the short cache. */
+  refresh: z.boolean().optional().default(false),
 });
 
 interface ApiResponse {
@@ -54,7 +56,9 @@ export async function POST(request: Request): Promise<NextResponse<ApiResponse>>
   }
 
   try {
-    const code = await resolvePobInput(result.data.input);
+    const code = await resolvePobInput(result.data.input, {
+      bypassCache: result.data.refresh,
+    });
     const xml = decodePobCode(code);
     const build = parseBuildXml(xml);
     const share = extractPriceData(extractNotes(xml));

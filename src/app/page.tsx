@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ImportForm } from "@/components/import/ImportForm";
 import { SignInPoe } from "@/components/import/SignInPoe";
@@ -16,7 +16,7 @@ import { GAME_IDS, GAMES, type GameId } from "@/lib/game/registry";
 import type { ItemSetView, ParsedBuild, ParsedItem } from "@/types/item";
 import type { TradeMeta } from "@/lib/trade/meta";
 import { decodeEmbeddedPrices, decodeShare, type SharePayload } from "@/lib/share";
-import { clearDraft, draftHasWork, loadDraft, saveDraft } from "@/lib/draft";
+import { clearGameDraft, draftHasWork, loadDraft, saveDraft } from "@/lib/draft";
 import { itemKey } from "@/lib/build/itemKey";
 import { sumPrices } from "@/lib/build/price";
 import { useBuildPrices } from "@/hooks/useBuildPrices";
@@ -129,6 +129,10 @@ export default function Home() {
   /** Blocks autosave until the initial restore has run, so an empty first
    *  render can't overwrite a good draft. */
   const [restored, setRestored] = useState(false);
+  /** Cancels superseded imports and prevents a late response from restoring a
+   *  session after the user cleared it. */
+  const importController = useRef<AbortController | null>(null);
+  const importSequence = useRef(0);
 
   useEffect(() => {
     setSessions(loadSessions());
@@ -186,31 +190,47 @@ export default function Home() {
     return { gear, jewels, gems, flasks, charms, totalGems };
   }, [view]);
 
-  const importInput = useCallback(async (input: string): Promise<ImportResult | null> => {
+  const importInput = useCallback(async (
+    input: string,
+    options: { refresh?: boolean; replacePrices?: boolean } = {},
+  ): Promise<ImportResult | null> => {
+    importController.current?.abort();
+    const controller = new AbortController();
+    importController.current = controller;
+    const sequence = ++importSequence.current;
     setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/build/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input }),
+        body: JSON.stringify({ input, refresh: options.refresh ?? false }),
+        signal: controller.signal,
       });
       const json: ImportResponse = await res.json();
+      if (sequence !== importSequence.current) return null;
       if (!json.success || !json.data) {
         setError(json.error ?? "Import failed.");
         return null;
       }
       const imported = json.data;
+      if (options.replacePrices) {
+        setPrices((prev) => withGamePrices(prev, imported.game, {}));
+      }
       setBuilds((prev) => ({ ...prev, [imported.game]: imported }));
       setActiveSetIds((prev) => ({ ...prev, [imported.game]: imported.activeItemSetId }));
       setInputs((prev) => ({ ...prev, [imported.game]: input }));
       setGame(imported.game);
       return { build: imported, share: json.share ?? null };
     } catch {
+      if (controller.signal.aborted || sequence !== importSequence.current) return null;
       setError("Could not reach the server.");
       return null;
     } finally {
-      setLoading(false);
+      if (sequence === importSequence.current) {
+        importController.current = null;
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -235,7 +255,35 @@ export default function Home() {
   function handleImport(input: string) {
     // Pasting a shared link should bring its prices along, the same as opening
     // that link directly — the paste is the share.
-    void importInput(input).then((r) => void applyEmbedded(r?.share ?? null));
+    void importInput(input, { refresh: true, replacePrices: true }).then(
+      (r) => void applyEmbedded(r?.share ?? null),
+    );
+  }
+
+  function clearCurrentSession() {
+    const label = GAMES[game].label;
+    if (
+      (builds[game] || inputs[game] || Object.keys(prices).some((key) => key.startsWith(`${game}|`))) &&
+      !window.confirm(`Clear the current ${label} session? Saved builds will be kept.`)
+    ) {
+      return;
+    }
+
+    importController.current?.abort();
+    importController.current = null;
+    importSequence.current += 1;
+    clearGameDraft(game);
+    setBuilds((prev) => ({ ...prev, [game]: null }));
+    setActiveSetIds((prev) => ({ ...prev, [game]: "" }));
+    setInputs((prev) => ({ ...prev, [game]: "" }));
+    setLeagues((prev) => ({ ...prev, [game]: meta[game]?.defaultLeague ?? "" }));
+    setPrices((prev) => withGamePrices(prev, game, {}));
+    setError(null);
+    setLoading(false);
+    setCustomLeague(false);
+    if (window.location.hash) {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    }
   }
 
   // Apply a parsed build that didn't come from a pasted input (e.g. character import).
@@ -523,6 +571,14 @@ export default function Home() {
               key={`${game}|${inputs[game] ?? ""}`}
               initialValue={inputs[game] ?? ""}
               onImport={handleImport}
+              onClear={clearCurrentSession}
+              canClear={Boolean(
+                loading ||
+                  error ||
+                  builds[game] ||
+                  inputs[game] ||
+                  Object.keys(prices).some((key) => key.startsWith(`${game}|`)),
+              )}
               loading={loading}
             />
             {error && (
@@ -585,18 +641,9 @@ export default function Home() {
                     )}
                     <span
                       className="text-xs text-muted"
-                      title="Your prices are kept in this browser automatically — a refresh won't lose them. Click to discard."
+                      title="This working session is saved automatically in your browser."
                     >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          clearDraft();
-                          setPrices({});
-                        }}
-                        className="underline decoration-dotted underline-offset-2 transition-colors hover:text-accent"
-                      >
-                        Autosaved
-                      </button>
+                      Autosaved
                     </span>
                     <span className="text-muted">
                       {total} item{total === 1 ? "" : "s"}
