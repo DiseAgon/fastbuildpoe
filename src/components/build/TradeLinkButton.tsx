@@ -215,6 +215,11 @@ export function TradeLinkButton({
                             Eld
                           </span>
                         )}
+                        {filter.variantDefining && (
+                          <span className="shrink-0 rounded border border-rarity-unique/50 px-1 text-[9px] uppercase text-rarity-unique" title="Defines this unique item's variant — required by default">
+                            Variant
+                          </span>
+                        )}
                         {filter.fracturedStatId && (
                           <label className={`flex shrink-0 items-center gap-0.5 text-[9px] uppercase ${filter.fractured ? "text-rarity-unique" : "text-muted"}`} title="Require the fractured version of this modifier">
                             <input

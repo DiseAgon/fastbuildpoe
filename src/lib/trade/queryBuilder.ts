@@ -8,6 +8,7 @@ import { getWeaponBase, getWeaponTradeCategory } from "./weaponBase";
 import { computeWeaponDps } from "./weaponDps";
 import { resolveGemType } from "./gemTypes";
 import { emptySocketOptions, type SocketOptions } from "./socketOptions";
+import { uniqueJewelVariant } from "./uniqueJewelVariants";
 
 export type { SocketOptions } from "./socketOptions";
 
@@ -90,6 +91,10 @@ export interface EditableFilter {
   band: StatBand;
   /** Special item mechanic that produced this modifier. */
   source?: ParsedItem["mods"][number]["source"];
+  /** Additional PoB lines consumed by this one multi-line trade stat. */
+  continuations?: string[];
+  /** Discriminator/option/seed that selects a materially different unique. */
+  variantDefining?: boolean;
 }
 
 /** A computed equipment filter — armour defences or weapon DPS. */
@@ -146,6 +151,7 @@ interface FamilyInfo {
   label: string;
   memberIds: string[];
   exact: boolean;
+  interchangeable: boolean;
 }
 
 /** Resolve each mod family's member stat ids for this game (skips missing). */
@@ -160,7 +166,13 @@ function resolveFamilies(index: StatIndex): Map<string, FamilyInfo> {
       if (entry && !memberIds.includes(entry.id)) memberIds.push(entry.id);
     }
     if (memberIds.length < 2) continue; // need siblings to be worth expanding
-    const info: FamilyInfo = { key: fam.key, label: fam.label, memberIds, exact: !!fam.exact };
+    const info: FamilyInfo = {
+      key: fam.key,
+      label: fam.label,
+      memberIds,
+      exact: !!fam.exact,
+      interchangeable: !!fam.interchangeable,
+    };
     for (const id of memberIds) byStatId.set(id, info);
   }
   return byStatId;
@@ -329,7 +341,23 @@ async function autoFilters(
   const filters: EditableFilter[] = [];
   let unmatched = 0;
   let prevTemplate: string | null = null;
+  let continuationFilter: EditableFilter | null = null;
+  let continuationLines: string[] = [];
   for (const mod of item.mods) {
+    if (
+      continuationFilter &&
+      continuationLines.length > 0 &&
+      normalizeStatText(mod.template) === continuationLines[0]
+    ) {
+      (continuationFilter.continuations ??= []).push(mod.text);
+      continuationLines.shift();
+      if (continuationLines.length === 0) continuationFilter = null;
+      prevTemplate = mod.template;
+      continue;
+    }
+    continuationFilter = null;
+    continuationLines = [];
+
     const hit = matchMod(
       index,
       mod,
@@ -350,8 +378,16 @@ async function autoFilters(
     const fracturedEntry = index.byText
       .get(normalizeStatText(mod.template))
       ?.find((c) => c.entry.type === "fractured")?.entry;
-    // Exact-match families (timeless jewel seeds) lock min = max = roll.
-    const exact = families.get(hit.entry.id)?.exact ?? false;
+    // Exact-match families (timeless jewel seeds) and discrete unique-jewel
+    // variants lock min = max = roll.
+    const familyExact = families.get(hit.entry.id)?.exact ?? false;
+    const uniqueVariant = uniqueJewelVariant(
+      game,
+      item,
+      hit.entry.text,
+      hit.entry.id,
+    );
+    const exact = familyExact || uniqueVariant.exactRoll;
     const roll = mod.values[0];
     const isOption = hit.option !== undefined;
     // "reduced X" matches the "increased X" stat with negative values on the
@@ -360,7 +396,7 @@ async function autoFilters(
       hit.negated && roll !== undefined && roll > 0 && factor > 0
         ? -Math.max(1, Math.floor(roll * factor))
         : null;
-    filters.push({
+    const filter: EditableFilter = {
       statId: hit.entry.id,
       text: mod.text,
       currentRoll: isOption ? null : (roll ?? null),
@@ -375,7 +411,24 @@ async function autoFilters(
       option: hit.option ?? null,
       band: bandOf(mod),
       source: mod.source,
-    });
+      variantDefining:
+        item.rarity === "unique" &&
+        (isOption || familyExact || uniqueVariant.defining),
+    };
+    filters.push(filter);
+
+    // Trade stats such as Impossible Escape are one logical stat split across
+    // several PoB lines. The index matches their first line; remember and
+    // consume the remaining lines so they share this filter instead of showing
+    // as separate "NO STAT" rows.
+    const tradeLines = hit.entry.text.split("\n").map(normalizeStatText);
+    if (
+      tradeLines.length > 1 &&
+      tradeLines[0] === normalizeStatText(mod.template)
+    ) {
+      continuationFilter = filter;
+      continuationLines = tradeLines.slice(1);
+    }
   }
   return { filters, unmatched };
 }
@@ -477,7 +530,8 @@ export async function buildItemQuery(
       ? auto.filters.map((filter) => ({
           ...filter,
           group:
-            vestigialImplicit !== undefined && filter.text === vestigialImplicit
+            filter.variantDefining ||
+            (vestigialImplicit !== undefined && filter.text === vestigialImplicit)
               ? "and" as const
               : "off" as const,
         }))
@@ -539,8 +593,20 @@ export async function buildItemQuery(
   // turn two resistances into "both required" even when the suffix pool asked
   // for only one.
   const familyByStatId = resolveFamilies(await getStatIndex(game));
-  const andF = filters.filter((f) => f.group === "and" && !inFracCount(f));
-  const countF = filters.filter((f) => f.group === "count" && !inFracCount(f));
+  const inInterchangeableFamily = (filter: EditableFilter): boolean =>
+    !!familyByStatId.get(filter.statId)?.interchangeable;
+  const interchangeableF = filters.filter(
+    (f) =>
+      (f.group === "and" || f.group === "count") &&
+      !inFracCount(f) &&
+      inInterchangeableFamily(f),
+  );
+  const andF = filters.filter(
+    (f) => f.group === "and" && !inFracCount(f) && !inInterchangeableFamily(f),
+  );
+  const countF = filters.filter(
+    (f) => f.group === "count" && !inFracCount(f) && !inInterchangeableFamily(f),
+  );
   const notF = filters.filter((f) => f.group === "not" && !inFracCount(f));
   const activeFamilyIds = new Set([...andF, ...countF].map((filter) => filter.statId));
   const disabledFamilySiblings = (present: EditableFilter[]): TradeStatFilter[] => {
@@ -608,6 +674,36 @@ export async function buildItemQuery(
   if (andF.length > 0) {
     stats.push({ type: "and", filters: andF.map(toStatFilter) });
     strategyParts.push(`${andF.length} required`);
+  }
+  // Most Timeless Jewels transform the tree from the numeric seed; their
+  // historical figure only selects the keystone. Search every figure with the
+  // same exact seed in one count=1 group so equivalent seeds are not hidden.
+  // Militant Faith deliberately does not opt into this family behavior.
+  const interchangeableByFamily = new Map<string, EditableFilter[]>();
+  for (const filter of interchangeableF) {
+    const family = familyByStatId.get(filter.statId)!;
+    const list = interchangeableByFamily.get(family.key) ?? [];
+    list.push(filter);
+    interchangeableByFamily.set(family.key, list);
+  }
+  for (const list of interchangeableByFamily.values()) {
+    const source = list[0];
+    const family = familyByStatId.get(source.statId)!;
+    stats.push({
+      type: "count",
+      value: { min: 1 },
+      filters: family.memberIds.map((statId) =>
+        toStatFilter({
+          ...source,
+          statId,
+          fractured: false,
+          fracturedStatId: null,
+        }),
+      ),
+    });
+    strategyParts.push(
+      `${family.label}: exact seed ${source.currentRoll ?? ""} · any variant`.trim(),
+    );
   }
   for (const band of bands) {
     const list = countByBand.get(band.key)!;

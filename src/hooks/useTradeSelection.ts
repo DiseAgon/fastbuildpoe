@@ -83,11 +83,21 @@ function emptySelection(item: ParsedItem): TradeSelection {
 function mapModsToFilters(mods: ParsedItem["mods"], filters: EditableFilter[]): number[] {
   const out = new Array<number>(mods.length).fill(-1);
   let fi = 0;
-  for (let mi = 0; mi < mods.length && fi < filters.length; mi++) {
-    if (mods[mi].text === filters[fi].text) {
-      out[mi] = fi;
-      fi++;
+  let mi = 0;
+  while (mi < mods.length && fi < filters.length) {
+    const filter = filters[fi];
+    if (mods[mi].text !== filter.text) {
+      mi++;
+      continue;
     }
+    out[mi] = fi;
+    mi++;
+    for (const continuation of filter.continuations ?? []) {
+      if (mi >= mods.length || mods[mi].text !== continuation) break;
+      out[mi] = fi;
+      mi++;
+    }
+    fi++;
   }
   return out;
 }

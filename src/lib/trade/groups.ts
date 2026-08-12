@@ -12,6 +12,8 @@ export interface ModFamily {
   texts: string[];
   /** Match the value exactly (min = max), e.g. timeless jewel seeds. */
   exact?: boolean;
+  /** Search the same exact value across every member with count = 1. */
+  interchangeable?: boolean;
 }
 
 export const MOD_FAMILIES: ModFamily[] = [
@@ -66,6 +68,7 @@ export const MOD_FAMILIES: ModFamily[] = [
     key: "timeless-gv",
     label: "Glorious Vanity",
     exact: true,
+    interchangeable: true,
     texts: [
       "Bathed in the blood of # sacrificed in the name of Xibaqua",
       "Bathed in the blood of # sacrificed in the name of Ahuana",
@@ -77,6 +80,7 @@ export const MOD_FAMILIES: ModFamily[] = [
     key: "timeless-lp",
     label: "Lethal Pride",
     exact: true,
+    interchangeable: true,
     texts: [
       "Commanded leadership over # warriors under Kaom",
       "Commanded leadership over # warriors under Rakiata",
@@ -88,6 +92,7 @@ export const MOD_FAMILIES: ModFamily[] = [
     key: "timeless-br",
     label: "Brutal Restraint",
     exact: true,
+    interchangeable: true,
     texts: [
       "Denoted service of # dekhara in the akhara of Balbala",
       "Denoted service of # dekhara in the akhara of Asenath",
@@ -110,11 +115,23 @@ export const MOD_FAMILIES: ModFamily[] = [
     key: "timeless-eh",
     label: "Elegant Hubris",
     exact: true,
+    interchangeable: true,
     texts: [
       "Commissioned # coins to commemorate Cadiro",
       "Commissioned # coins to commemorate Victario",
       "Commissioned # coins to commemorate Caspiro",
       "Commissioned # coins to commemorate Chitus",
+    ],
+  },
+  {
+    key: "timeless-ht",
+    label: "Heroic Tragedy",
+    exact: true,
+    interchangeable: true,
+    texts: [
+      "Remembrancing # songworthy deeds by the line of Vorana",
+      "Remembrancing # songworthy deeds by the line of Uhtred",
+      "Remembrancing # songworthy deeds by the line of Medved",
     ],
   },
   // Curse of the Allflame's unique Abyss jewels use the same seed semantics as

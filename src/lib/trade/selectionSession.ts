@@ -21,15 +21,15 @@ export interface SessionTradeSelection {
 }
 
 export interface StoredTradeSelection {
-  v: 2;
+  v: 3;
   roll: number;
   selection: SessionTradeSelection;
   /** Raw-mod groups temporarily hidden by selected pseudo replacements. */
   replacementGroups: Record<string, FilterGroup>;
 }
 
-const PREFIX = "fbp-trade-selection-v2:";
-const LEGACY_PREFIXES = ["fbp-trade-selection-v1:"];
+const PREFIX = "fbp-trade-selection-v3:";
+const LEGACY_PREFIXES = ["fbp-trade-selection-v1:", "fbp-trade-selection-v2:"];
 
 /** Compact deterministic identity without placing an entire PoB item in a key. */
 function fingerprint(value: string): string {
@@ -104,7 +104,7 @@ export function loadTradeSelection(
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<StoredTradeSelection>;
     if (
-      parsed.v !== 2 ||
+      parsed.v !== 3 ||
       typeof parsed.roll !== "number" ||
       !Number.isFinite(parsed.roll) ||
       !validSelection(parsed.selection) ||
@@ -132,7 +132,7 @@ export function saveTradeSelection(
   if (typeof window === "undefined") return;
   try {
     const payload: StoredTradeSelection = {
-      v: 2,
+      v: 3,
       roll,
       selection,
       replacementGroups: Object.fromEntries(replacementGroups),

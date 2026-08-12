@@ -64,6 +64,8 @@ const FilterSchema = z.object({
   option: z.number().nullable().optional().default(null),
   band: BandSchema.optional().default("other"),
   source: z.enum(["searing", "eater", "eldritch", "vestigial"]).optional(),
+  continuations: z.array(z.string()).optional(),
+  variantDefining: z.boolean().optional(),
 });
 
 const EquipmentSchema = z.object({
