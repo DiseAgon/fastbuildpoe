@@ -20,7 +20,7 @@ export type ModType =
  * mods legitimately have no answer here.
  */
 export type ModAffix = "prefix" | "suffix";
-export type ModSource = "searing" | "eater" | "eldritch" | "vestigial";
+export type ModSource = "searing" | "eater" | "eldritch" | "vestigial" | "foulborn";
 
 export interface ParsedMod {
   /** Cleaned mod text with original numeric rolls intact. */
@@ -32,7 +32,7 @@ export interface ParsedMod {
   type: ModType;
   /** Affix slot, when PoB recorded one. */
   affix?: ModAffix;
-  /** Special source encoded by PoB (`{exarch}`, `{eater}`, `{vestigial}`). */
+  /** Special source encoded by PoB (`{exarch}`, `{eater}`, `{vestigial}`, `{mutated}`). */
   source?: ModSource;
 }
 
@@ -58,6 +58,8 @@ export interface ParsedItem {
   influences?: string[];
   /** PoE1 armour carrying a donor-derived Vestigial implicit. */
   vestigial?: boolean;
+  /** PoE1 unique with one or more Foulborn-mutated modifiers. */
+  foulborn?: boolean;
   corrupted: boolean;
   mods: ParsedMod[];
   /** Mod lines we could not confidently parse — surfaced, never silently dropped. */

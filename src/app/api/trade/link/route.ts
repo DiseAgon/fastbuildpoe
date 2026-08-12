@@ -24,7 +24,7 @@ const ModSchema = z.object({
     "unknown",
   ]),
   affix: z.enum(["prefix", "suffix"]).optional(),
-  source: z.enum(["searing", "eater", "eldritch", "vestigial"]).optional(),
+  source: z.enum(["searing", "eater", "eldritch", "vestigial", "foulborn"]).optional(),
 });
 
 const BandSchema = z.enum(["implicit", "prefix", "suffix", "other"]);
@@ -49,6 +49,7 @@ const ItemSchema = z.object({
     .optional(),
   influences: z.array(z.string()).optional(),
   vestigial: z.boolean().optional(),
+  foulborn: z.boolean().optional(),
   mods: z.array(ModSchema),
 });
 
@@ -63,7 +64,7 @@ const FilterSchema = z.object({
   fracturedStatId: z.string().nullable().optional().default(null),
   option: z.number().nullable().optional().default(null),
   band: BandSchema.optional().default("other"),
-  source: z.enum(["searing", "eater", "eldritch", "vestigial"]).optional(),
+  source: z.enum(["searing", "eater", "eldritch", "vestigial", "foulborn"]).optional(),
   continuations: z.array(z.string()).optional(),
   variantDefining: z.boolean().optional(),
 });

@@ -21,6 +21,11 @@ interface ApiProperty {
   values?: Array<[string, number]>;
 }
 
+interface ApiMod {
+  description?: string;
+  flags?: { mutated?: boolean };
+}
+
 interface ApiItem {
   name?: string;
   typeLine?: string;
@@ -29,18 +34,20 @@ interface ApiItem {
   frameType?: number;
   corrupted?: boolean;
   vestigial?: boolean;
+  mutated?: boolean;
+  foulborn?: boolean;
   searing?: boolean;
   tangled?: boolean;
   influences?: Record<string, boolean>;
   inventoryId?: string;
   properties?: ApiProperty[];
-  implicitMods?: string[];
-  explicitMods?: string[];
-  craftedMods?: string[];
-  fracturedMods?: string[];
-  enchantMods?: string[];
-  crucibleMods?: string[];
-  runeMods?: string[];
+  implicitMods?: Array<string | ApiMod>;
+  explicitMods?: Array<string | ApiMod>;
+  craftedMods?: Array<string | ApiMod>;
+  fracturedMods?: Array<string | ApiMod>;
+  enchantMods?: Array<string | ApiMod>;
+  crucibleMods?: Array<string | ApiMod>;
+  runeMods?: Array<string | ApiMod>;
   socketedItems?: ApiItem[];
   sockets?: Array<{ group: number }>;
 }
@@ -98,9 +105,16 @@ function slotName(inventoryId: string | undefined, x: number): string | undefine
   }
 }
 
-function toMod(text: string, type: ModType, source?: ParsedMod["source"]): ParsedMod {
+function toMod(value: string | ApiMod, type: ModType, source?: ParsedMod["source"]): ParsedMod {
+  const text = typeof value === "string" ? value : (value.description ?? "");
   const values = (text.match(NUMBER) ?? []).map(Number);
-  return { text, template: text.replace(NUMBER, "#"), values, type, source };
+  return {
+    text,
+    template: text.replace(NUMBER, "#"),
+    values,
+    type,
+    source: typeof value !== "string" && value.flags?.mutated ? "foulborn" : source,
+  };
 }
 
 function propValue(props: ApiProperty[] | undefined, name: string): number | undefined {
@@ -114,6 +128,11 @@ function propValue(props: ApiProperty[] | undefined, name: string): number | und
 function parseApiItem(item: ApiItem, x = 0): ParsedItem {
   const rarity = FRAME_RARITY[item.frameType ?? 0] ?? "normal";
   const vestigial = !!item.vestigial || /^vestigial\s+/i.test(item.typeLine ?? "");
+  const foulborn =
+    !!item.mutated ||
+    !!item.foulborn ||
+    /^foulborn\s+/i.test(item.name ?? "") ||
+    /^foulborn\s+/i.test(item.typeLine ?? "");
   const baseType = (item.baseType || item.typeLine || "").replace(/^vestigial\s+/i, "");
   const slot = slotName(item.inventoryId, x);
   const name = item.name || item.typeLine || baseType;
@@ -135,7 +154,7 @@ function parseApiItem(item: ApiItem, x = 0): ParsedItem {
     ...(item.craftedMods ?? []).map((m) => toMod(m, "crafted")),
     ...(item.crucibleMods ?? []).map((m) => toMod(m, "crucible")),
     ...(item.runeMods ?? []).map((m) => toMod(m, "explicit")),
-  ];
+  ].filter((mod) => mod.text.length > 0);
 
   const defences = {
     armour: propValue(item.properties, "Armour"),
@@ -172,6 +191,7 @@ function parseApiItem(item: ApiItem, x = 0): ParsedItem {
     defences: hasDefence ? defences : undefined,
     influences: influences.length > 0 ? influences : undefined,
     vestigial: vestigial || undefined,
+    foulborn: foulborn || undefined,
     corrupted: !!item.corrupted,
     mods,
     unparsed: [],

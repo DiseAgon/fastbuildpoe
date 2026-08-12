@@ -51,6 +51,8 @@ export interface TradeSelectionState {
   setRoll: (roll: number) => void;
   sel: TradeSelection;
   update: (patch: Partial<TradeSelection>) => void;
+  /** Change one raw mod's search role, disabling a pseudo that replaced it. */
+  setFilterGroup: (index: number, group: FilterGroup) => void;
   /** Select a pseudo as a replacement, switching covered source mods off. */
   togglePseudo: (index: number, include: boolean) => void;
   data: TradeLinkData | null;
@@ -368,11 +370,54 @@ export function useTradeSelection(
     [fetchLink, persist, roll, sel],
   );
 
+  const setFilterGroup = useCallback(
+    (index: number, group: FilterGroup) => {
+      const target = sel.filters[index];
+      if (!target) return;
+      // A raw filter cannot be active while a pseudo replacement covering it
+      // remains active. Direct editing on the card should therefore restore the
+      // entire raw group that pseudo hid, then apply the requested target role.
+      const previouslyActive = sel.pseudo.filter((row) => row.include);
+      const pseudo = group === "off"
+        ? sel.pseudo
+        : sel.pseudo.map((row) =>
+            row.include && pseudoCoversFilter(row.statId, target.statId)
+              ? { ...row, include: false }
+              : row,
+          );
+      const newlyActive = pseudo.filter((row) => row.include);
+      const filters = sel.filters.map((filter, filterIndex) => {
+        if (filterIndex === index) {
+          pseudoSourceGroups.current.delete(
+            `${filterIndex}\0${filter.statId}\0${filter.text}`,
+          );
+          return { ...filter, group };
+        }
+        const wasCovered = previouslyActive.some((row) =>
+          pseudoCoversFilter(row.statId, filter.statId),
+        );
+        const isCovered = newlyActive.some((row) =>
+          pseudoCoversFilter(row.statId, filter.statId),
+        );
+        if (wasCovered && !isCovered) {
+          const key = `${filterIndex}\0${filter.statId}\0${filter.text}`;
+          const original = pseudoSourceGroups.current.get(key);
+          pseudoSourceGroups.current.delete(key);
+          if (original) return { ...filter, group: original };
+        }
+        return filter;
+      });
+      update({ filters, pseudo });
+    },
+    [sel, update],
+  );
+
   return {
     roll,
     setRoll,
     sel,
     update,
+    setFilterGroup,
     togglePseudo,
     data,
     loading,

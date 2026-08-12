@@ -40,6 +40,13 @@ const BASE_SCOPES: Array<{ id: BaseScope; label: string; hint: string }> = [
   { id: "any", label: "Any item", hint: "No base or slot restriction" },
 ];
 
+const QUICK_BAND_LABEL = {
+  implicit: "I",
+  prefix: "P",
+  suffix: "S",
+  other: "Mods",
+} as const;
+
 /**
  * The item card stays readable; all decisions that shape the query live in one
  * focused dialog. Pseudo rows say “Replace” because they remove their covered
@@ -53,22 +60,78 @@ export function TradeLinkButton({
   trade: TradeSelectionState;
 }) {
   const { game } = useBuild();
-  const { roll, setRoll, sel, update, togglePseudo, data, loading, error } = trade;
+  const { roll, setRoll, sel, update, setFilterGroup, togglePseudo, data, loading, error } = trade;
   const [open, setOpen] = useState(false);
   useEscapeClose(open, () => setOpen(false));
   const bands = data?.bands ?? [];
   const socketCounts = itemSocketCounts(item.sockets);
   const displayName = item.name === "New Item" ? item.baseType : item.name;
+  const isRare = item.rarity === "rare";
 
   return (
     <div className="flex flex-col gap-2 px-4 pb-3">
+      {isRare && (
+        <div className="flex flex-wrap items-center gap-1.5" aria-label="Quick trade settings">
+          <label
+            className="flex h-8 items-center gap-1 rounded-md border border-border bg-bg/30 px-2 text-[10px] font-semibold uppercase tracking-wide text-muted"
+            title={rollHint(roll)}
+          >
+            Roll
+            <select
+              value={roll}
+              onChange={(event) => setRoll(Number(event.target.value))}
+              className="bg-transparent text-xs font-medium normal-case text-text outline-none"
+              aria-label="Minimum roll percentage"
+            >
+              {!PRESETS.some((preset) => preset.value === roll) && (
+                <option value={roll}>{roll}%</option>
+              )}
+              {PRESETS.map((preset) => (
+                <option key={preset.value} value={preset.value}>
+                  {preset.label} · {preset.value}%
+                </option>
+              ))}
+            </select>
+          </label>
+          {bands.map((band) => {
+            const current = sel.bandMins[band.key] ?? band.min;
+            return (
+              <label
+                key={band.key}
+                className="flex h-8 items-center gap-1 rounded-md border border-border bg-bg/30 px-2 text-[10px] font-semibold uppercase tracking-wide text-muted"
+                title={`${band.label}: match any ${current} of ${band.total}`}
+              >
+                {QUICK_BAND_LABEL[band.key]}
+                <select
+                  value={current}
+                  onChange={(event) =>
+                    update({
+                      bandMins: {
+                        ...sel.bandMins,
+                        [band.key]: Number(event.target.value),
+                      },
+                    })
+                  }
+                  className="bg-transparent text-xs font-medium normal-case text-text outline-none"
+                  aria-label={`${band.label} mods required`}
+                >
+                  {Array.from({ length: band.total }, (_, index) => index + 1).map((value) => (
+                    <option key={value} value={value}>{value}/{band.total}</option>
+                  ))}
+                </select>
+              </label>
+            );
+          })}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
           onClick={() => setOpen(true)}
           className="rounded-[var(--radius)] border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text transition-colors hover:border-accent/60 hover:text-accent"
         >
-          Configure trade search
+          {isRare ? "Advanced" : "Configure trade search"}
         </button>
         {data ? (
           <a
@@ -196,7 +259,7 @@ export function TradeLinkButton({
               )}
 
               {sel.filters.length > 0 && (
-                <SearchRows title="Modifiers" hint={item.rarity === "unique" ? "Unique mods are off by default; enable only rolls that define the variant you need." : "Prefix and suffix keep separate similarity pools. Eldritch implicits start Off because they can be recrafted."}>
+                <SearchRows title="Modifiers" hint={item.rarity === "unique" ? "Unique mods are off by default; variant-defining and Foulborn-mutated mods are required." : "Prefix and suffix keep separate similarity pools. Eldritch implicits start Off because they can be recrafted."}>
                   {bands.map((band) => (
                     <label key={band.key} className="flex items-center gap-2 rounded bg-bg/40 px-2 py-1.5 text-xs text-muted">
                       <span className="min-w-20 text-text">{band.label}</span> match any
@@ -206,13 +269,18 @@ export function TradeLinkButton({
                   ))}
                   {sel.filters.map((filter, index) => (
                     <div key={`${filter.statId}-${index}`} className="grid grid-cols-[5.5rem_minmax(0,1fr)_3.75rem_3.75rem] items-center gap-1.5 rounded px-1 py-1 text-xs hover:bg-bg/50">
-                      <select value={filter.group} onChange={(event) => update({ filters: sel.filters.map((current, i) => i === index ? { ...current, group: event.target.value as FilterGroup } : current) })} className="rounded border border-border bg-surface px-1 py-1 text-text">
+                      <select value={filter.group} onChange={(event) => setFilterGroup(index, event.target.value as FilterGroup)} className="rounded border border-border bg-surface px-1 py-1 text-text">
                         {GROUPS.map((group) => <option key={group.id} value={group.id}>{group.label}</option>)}
                       </select>
                       <span className="flex min-w-0 items-center gap-1.5">
                         {(filter.source === "searing" || filter.source === "eater" || filter.source === "eldritch") && (
                           <span className="shrink-0 rounded border border-accent/40 px-1 text-[9px] uppercase text-accent" title="Eldritch implicit — off by default">
                             Eld
+                          </span>
+                        )}
+                        {filter.source === "foulborn" && (
+                          <span className="shrink-0 rounded border border-accent/50 px-1 text-[9px] uppercase text-accent" title="Foulborn-mutated modifier">
+                            Foul
                           </span>
                         )}
                         {filter.variantDefining && (

@@ -19,7 +19,7 @@ import { categorize } from "./categorize";
  *   Corrupted
  *
  * Inline annotations handled: {range:n}, {crafted}, {fractured}, {variant:a,b},
- * {tags:...}, {custom}. Variant lines are filtered to the item's selected variant.
+ * {tags:...}, {custom}, {mutated}. Variant lines are filtered to the item's selected variant.
  */
 
 const NUMBER = /[+-]?\d+(?:\.\d+)?/g;
@@ -103,7 +103,7 @@ const META_KEYS = new Set([
 /** Standalone flag lines that are item properties, not mods. */
 const INFLUENCE_LINE =
   /^(Shaper|Elder|Crusader|Hunter|Redeemer|Warlord|Searing Exarch|Eater of Worlds) Item$/i;
-const FLAG_LINE = /^(Synthesised Item|Fractured Item|Vestigial Item|Mirrored|Split|Foil Unique(?: \([^)]*\))?)$/i;
+const FLAG_LINE = /^(Synthesised Item|Fractured Item|Vestigial Item|Foulborn Item|Mirrored|Split|Foil Unique(?: \([^)]*\))?)$/i;
 /**
  * Class restriction. PoB writes it both above the `Implicits:` count and as a
  * mod line below it, and it is counted in neither — treating it as a mod ended
@@ -174,6 +174,7 @@ function detectAffix(annotations: string[]): ModAffix | undefined {
 }
 
 function detectModSource(annotations: string[]): ModSource | undefined {
+  if (annotations.includes("mutated")) return "foulborn";
   if (annotations.includes("exarch")) return "searing";
   if (annotations.includes("eater")) return "eater";
   if (annotations.includes("vestigial")) return "vestigial";
@@ -257,6 +258,10 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
     /^vestigial\s+/i.test(baseType) ||
     body.some((line) => /^vestigial item$/i.test(line.replace(ANNOTATION, "").trim()));
   if (vestigial) baseType = baseType.replace(/^vestigial\s+/i, "");
+  const foulbornByNameOrFlag =
+    rarity === "unique" &&
+    (/^foulborn\s+/i.test(name) ||
+      body.some((line) => /^foulborn item$/i.test(line.replace(ANNOTATION, "").trim())));
   // Magic items carry affixes in their single name line ("Turquoise Amulet of
   // the Fox"). Strip the "of …" suffix so trade `type` gets a real base type.
   if (rarity === "magic") baseType = baseType.replace(/\s+of\s+.+$/i, "");
@@ -402,6 +407,8 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
       if (mod.type === "implicit") mod.source = "eldritch";
     }
   }
+  const foulborn =
+    foulbornByNameOrFlag || mods.some((mod) => mod.source === "foulborn");
 
   return {
     raw,
@@ -417,6 +424,7 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
     defences: Object.keys(defences).length > 0 ? defences : undefined,
     influences: influences.length > 0 ? influences : undefined,
     vestigial: vestigial || undefined,
+    foulborn: foulborn || undefined,
     corrupted,
     mods,
     unparsed,

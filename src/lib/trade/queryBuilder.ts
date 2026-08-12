@@ -413,7 +413,10 @@ async function autoFilters(
       source: mod.source,
       variantDefining:
         item.rarity === "unique" &&
-        (isOption || familyExact || uniqueVariant.defining),
+        (isOption ||
+          familyExact ||
+          uniqueVariant.defining ||
+          mod.source === "foulborn"),
     };
     filters.push(filter);
 
@@ -794,6 +797,17 @@ export async function buildItemQuery(
     miscFilters.filters.vestigial = { option: "true" };
     query.filters.misc_filters = miscFilters;
     strategyParts.push("Vestigial");
+  }
+
+  // Foulborn is an item property on the live trade API. The unique name is
+  // unchanged there, so without this filter a name search mixes ordinary and
+  // mutated copies. Mutated mod lines are also required above when PoB marks
+  // them, which distinguishes uniques with more than one possible mutation.
+  if (game === "poe1" && item.foulborn) {
+    const miscFilters = query.filters.misc_filters ?? { filters: {} };
+    miscFilters.filters.mutated = { option: "true" };
+    query.filters.misc_filters = miscFilters;
+    strategyParts.push("Foulborn");
   }
 
   if (baseScope === "slot") {

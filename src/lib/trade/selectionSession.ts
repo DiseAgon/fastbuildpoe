@@ -48,6 +48,7 @@ function storageKey(game: GameId, item: ParsedItem): string {
     item.name,
     item.baseType,
     item.vestigial ? "vestigial" : "",
+    item.foulborn ? "foulborn" : "",
     item.raw || JSON.stringify(item.mods),
   ].join("\0");
   return `${PREFIX}${game}:${fingerprint(identity)}`;
