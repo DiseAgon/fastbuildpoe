@@ -194,6 +194,19 @@ body {
   background: var(--selection-bg);
 }
 
+/*
+ * Native select popups are painted in a browser/OS-owned layer. Some engines
+ * keep the system's white popup background while inheriting our dark-theme
+ * text colour, making choices such as `1/3` and `Off / Any / Must` invisible.
+ * Give every popup row an explicit theme-aware foreground and background;
+ * the closed control can still use its component-specific transparent style.
+ */
+select option,
+select optgroup {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
