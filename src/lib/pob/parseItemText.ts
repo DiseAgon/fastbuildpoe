@@ -53,6 +53,18 @@ function resolveRangeSpans(text: string, rangePos: number): string {
   });
 }
 
+/**
+ * PoB keeps stats whose roll crosses zero in one grammatical form, such as
+ * `(-35-35)% reduced Duration`. Once the range is resolved, a negative
+ * reduction is an increase; displaying `-7% reduced Duration` is both awkward
+ * and, more importantly, makes the trade builder choose the wrong bound.
+ */
+function normalizeNegativeModifier(text: string): string {
+  return text
+    .replace(/-([0-9]+(?:\.[0-9]+)?)(%?)\s+reduced\b/gi, "$1$2 increased")
+    .replace(/-([0-9]+(?:\.[0-9]+)?)(%?)\s+increased\b/gi, "$1$2 reduced");
+}
+
 /** The roll position from a `{range:n}` annotation, default mid-roll. */
 function rangePosOf(annotations: string[]): number {
   for (const a of annotations) {
@@ -184,7 +196,9 @@ function detectModSource(annotations: string[]): ModSource | undefined {
 function toMod(line: string, isImplicit: boolean): ParsedMod {
   const annotations = extractAnnotations(line);
   const stripped = line.replace(ANNOTATION, "").trim();
-  const text = resolveRangeSpans(stripped, rangePosOf(annotations));
+  const text = normalizeNegativeModifier(
+    resolveRangeSpans(stripped, rangePosOf(annotations)),
+  );
   const values = (text.match(NUMBER) ?? []).map(Number);
   const template = text.replace(NUMBER, "#");
   return {

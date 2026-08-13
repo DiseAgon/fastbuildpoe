@@ -71,6 +71,31 @@ export interface BandInfo {
 const factorOf = (rollPercent: RollPercent): number =>
   Math.min(1, Math.max(0, rollPercent / 100));
 
+/**
+ * These trade stats are naturally better as their signed value increases,
+ * even when the item renders a negative value as “reduced”. Progenesis is the
+ * important case: 18% reduced Duration is -18 on the official trade axis, and
+ * a similar-or-better search must use a minimum (including less-reduced and
+ * increased-duration rolls), never a maximum that selects only worse rolls.
+ */
+const SIGNED_HIGHER_IS_BETTER = new Set([
+  "explicit.stat_1256719186", // #% increased Duration (flasks)
+]);
+
+function signedHigherMin(
+  roll: number | undefined,
+  negated: boolean,
+  factor: number,
+): number | null {
+  if (roll === undefined || factor <= 0) return null;
+  const signed = negated ? -roll : roll;
+  if (signed >= 0) return Math.floor(signed * factor);
+  // Relax a negative floor away from the item's roll while ensuring the item
+  // itself still qualifies. Multiplication would move it toward zero and make
+  // an 80% search stricter than the source item.
+  return Math.ceil(signed / factor);
+}
+
 /** One editable filter row, surfaced to the UI so the user can adjust it. */
 export interface EditableFilter {
   statId: string;
@@ -390,6 +415,7 @@ async function autoFilters(
     const exact = familyExact || uniqueVariant.exactRoll;
     const roll = mod.values[0];
     const isOption = hit.option !== undefined;
+    const signedHigher = SIGNED_HIGHER_IS_BETTER.has(hit.entry.id);
     // "reduced X" matches the "increased X" stat with negative values on the
     // trade side, so "at least this much reduction" is a max, not a min.
     const negatedMax =
@@ -400,8 +426,16 @@ async function autoFilters(
       statId: hit.entry.id,
       text: mod.text,
       currentRoll: isOption ? null : (roll ?? null),
-      min: isOption ? null : exact ? (roll ?? null) : hit.negated ? null : bandedMin(roll, factor),
-      max: isOption ? null : exact ? (roll ?? null) : negatedMax,
+      min: isOption
+        ? null
+        : exact
+          ? (roll ?? null)
+          : signedHigher
+            ? signedHigherMin(roll, hit.negated, factor)
+            : hit.negated
+              ? null
+              : bandedMin(roll, factor),
+      max: isOption || signedHigher ? null : exact ? (roll ?? null) : negatedMax,
       // Optional by default; each line is switchable to Must / Exclude / Off.
       group: "count",
       // Default off: search the mod normally (matches fractured or not). The

@@ -42,6 +42,14 @@ function fingerprint(value: string): string {
 }
 
 function storageKey(game: GameId, item: ParsedItem): string {
+  // Signed flask Duration used to seed the wrong bound (notably Progenesis).
+  // Version only those affected session keys so stale max filters are ignored
+  // without resetting trade choices for unrelated items or any Saved build.
+  const signedFlaskDurationVersion =
+    item.category === "flask" &&
+    item.mods.some((mod) => /#% (?:increased|reduced) duration$/i.test(mod.template))
+      ? "signed-flask-duration-v1"
+      : "";
   const identity = [
     item.category,
     item.slot ?? "",
@@ -49,6 +57,7 @@ function storageKey(game: GameId, item: ParsedItem): string {
     item.baseType,
     item.vestigial ? "vestigial" : "",
     item.foulborn ? "foulborn" : "",
+    signedFlaskDurationVersion,
     item.raw || JSON.stringify(item.mods),
   ].join("\0");
   return `${PREFIX}${game}:${fingerprint(identity)}`;
