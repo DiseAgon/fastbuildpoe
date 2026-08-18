@@ -1152,5 +1152,6 @@
  "Metadata/Items/Currency/CurrencyAfflictionOrbHardMode": "Delirium Orb",
  "Metadata/Items/Currency/KalguuranRune8": "Mountain Rune",
  "Metadata/Items/Currency/ScoutingReports/AtlasScoutingReportDelirium": "Delirious Scouting Report",
- "Metadata/Items/DivinationCards/DivinationCardTheObscured": "The Obscured"
+ "Metadata/Items/DivinationCards/DivinationCardTheObscured": "The Obscured",
+ "Metadata/Items/Currency/ScoutingReports/AtlasScoutingReportGuardian": "Influenced Scouting Report"
 }
