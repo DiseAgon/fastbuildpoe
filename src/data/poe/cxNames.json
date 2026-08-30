@@ -1155,5 +1155,7 @@
  "Metadata/Items/DivinationCards/DivinationCardTheObscured": "The Obscured",
  "Metadata/Items/Currency/ScoutingReports/AtlasScoutingReportGuardian": "Influenced Scouting Report",
  "Metadata/Items/Currency/CurrencyBreachPhysicalShard": "Splinter of Uul-Netol",
- "Metadata/Items/Currency/CurrencyBreachUpgradeUniqueFire": "Blessing of Xoph"
+ "Metadata/Items/Currency/CurrencyBreachUpgradeUniqueFire": "Blessing of Xoph",
+ "Metadata/Items/MapFragments/CurrencyBreachFragmentPhysical": "Uul-Netol's Breachstone",
+ "Metadata/Items/MapFragments/CurrencyBreachFragmentLightning": "Esh's Breachstone"
 }
