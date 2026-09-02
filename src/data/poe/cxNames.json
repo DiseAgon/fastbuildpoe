@@ -1157,5 +1157,6 @@
  "Metadata/Items/Currency/CurrencyBreachPhysicalShard": "Splinter of Uul-Netol",
  "Metadata/Items/Currency/CurrencyBreachUpgradeUniqueFire": "Blessing of Xoph",
  "Metadata/Items/MapFragments/CurrencyBreachFragmentPhysical": "Uul-Netol's Breachstone",
- "Metadata/Items/MapFragments/CurrencyBreachFragmentLightning": "Esh's Breachstone"
+ "Metadata/Items/MapFragments/CurrencyBreachFragmentLightning": "Esh's Breachstone",
+ "Metadata/Items/MapFragments/CurrencyBreachFragmentChaos5": "Chayula's Flawless Breachstone"
 }
