@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "check:hardening": "node --experimental-strip-types --no-warnings scripts/check-hardening.mts",
     "snapshot": "node scripts/snapshot.mjs",
     "snapshot:weapons": "node scripts/snapshot.mjs --weapons-only"
   },

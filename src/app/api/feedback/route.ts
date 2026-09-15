@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { clientKey, rateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,13 @@ const Body = z.object({
 });
 
 export async function POST(request: Request) {
+  if (!rateLimit(`feedback:${clientKey(request)}`, 10)) {
+    return NextResponse.json(
+      { success: false, error: "Too many reports — wait a minute and try again." },
+      { status: 429 },
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();

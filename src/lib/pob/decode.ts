@@ -1,5 +1,8 @@
 import { inflateSync } from "node:zlib";
 
+/** Inflate is otherwise unbounded; a 200k base64 blob can expand into hundreds of MB. */
+export const MAX_POB_XML_BYTES = 2_000_000;
+
 /**
  * Decode a Path of Building export string into its XML.
  *
@@ -27,7 +30,7 @@ export function decodePobCode(code: string): string {
 
   let xml: string;
   try {
-    xml = inflateSync(compressed).toString("utf8");
+    xml = inflateSync(compressed, { maxOutputLength: MAX_POB_XML_BYTES }).toString("utf8");
   } catch {
     throw new Error(
       "Could not decompress the code — it may be truncated or not a Path of Building export.",

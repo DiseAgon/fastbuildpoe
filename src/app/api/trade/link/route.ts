@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isGameId } from "@/lib/game/registry";
+import { clientKey, rateLimit } from "@/lib/rateLimit";
 import { buildItemQuery } from "@/lib/trade/queryBuilder";
 import { clampRollPercent, DEFAULT_ROLL_PERCENT } from "@/lib/trade/roll";
-import { resolveLeague } from "@/lib/trade/league";
+import { getTradeMeta } from "@/lib/trade/meta";
 import { buildTradeUrl } from "@/lib/trade/tradeLink";
 import type { ParsedItem } from "@/types/item";
 
@@ -119,6 +120,14 @@ const RequestBody = z.object({
 });
 
 export async function POST(request: Request) {
+  // A full build reseeds one link per item; keep this above a typical paste.
+  if (!rateLimit(`trade-link:${clientKey(request)}`, 120)) {
+    return NextResponse.json(
+      { success: false, data: null, error: "Too many trade searches — wait a minute and try again." },
+      { status: 429 },
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -157,7 +166,9 @@ export async function POST(request: Request) {
     const [resolvedLeague, built] = await Promise.all([
       parsed.data.league
         ? Promise.resolve(parsed.data.league)
-        : resolveLeague(game as Parameters<typeof resolveLeague>[0]),
+        : getTradeMeta(game as Parameters<typeof getTradeMeta>[0]).then(
+            (meta) => meta.defaultLeague || "Standard",
+          ),
       buildItemQuery(game as Parameters<typeof buildItemQuery>[0], item, roll, overrides),
     ]);
     const league = resolvedLeague;
