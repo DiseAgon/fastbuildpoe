@@ -78,7 +78,7 @@ export function FeedbackButton() {
         onClick={openDialog}
         aria-haspopup="dialog"
         title="Report a bug, a wrong item, or an idea"
-        className="group fixed bottom-4 right-4 z-30 flex items-center gap-2 rounded-full border border-accent/40 bg-surface/95 py-2 pl-3 pr-3 text-sm text-muted shadow-card backdrop-blur transition-colors duration-[var(--duration-fast)] hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent sm:pr-4"
+        className="group fixed bottom-4 right-4 z-30 flex min-h-11 items-center gap-2 rounded-full border border-accent/40 bg-surface/95 py-2.5 pl-3.5 pr-3.5 text-sm text-muted shadow-card backdrop-blur transition-colors duration-[var(--duration-fast)] hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent sm:pr-4"
       >
         <svg viewBox="0 0 24 24" aria-hidden className="h-4 w-4 shrink-0">
           <path
@@ -112,9 +112,11 @@ export function FeedbackButton() {
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close"
-                className="text-muted hover:text-text"
+                className="grid h-10 w-10 place-items-center rounded-full text-muted hover:bg-bg hover:text-text"
               >
-                ✕
+                <svg viewBox="0 0 16 16" aria-hidden className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                  <path d="M4 4l8 8M12 4l-8 8" />
+                </svg>
               </button>
             </div>
 

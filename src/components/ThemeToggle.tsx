@@ -52,7 +52,7 @@ export function ThemeToggle() {
       disabled={theme === null}
       aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
       title={isDark ? "Dark theme — click for light" : "Light theme — click for dark"}
-      className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border bg-surface text-muted transition-colors duration-[var(--duration-fast)] hover:border-accent/50 hover:text-accent disabled:opacity-50"
+      className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-muted transition-colors duration-[var(--duration-fast)] hover:border-accent/50 hover:text-accent disabled:opacity-50"
     >
       {theme === null ? (
         <span className="h-4 w-4 rounded-full border border-current opacity-40" aria-hidden />

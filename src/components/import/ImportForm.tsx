@@ -40,7 +40,7 @@ export function ImportForm({
           placeholder="https://pobb.in/xxxxxxxx"
           spellCheck={false}
           autoComplete="off"
-          className="flex-1 rounded-[var(--radius)] border border-border bg-surface px-4 py-3 text-text outline-none transition-colors duration-[var(--duration-fast)] placeholder:text-muted/60 focus:border-accent"
+          className="flex-1 rounded-[var(--radius)] border border-border bg-surface px-4 py-3 text-base text-text outline-none transition-colors duration-[var(--duration-fast)] placeholder:text-muted/60 focus:border-accent"
         />
         <button
           type="submit"

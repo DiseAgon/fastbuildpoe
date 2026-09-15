@@ -27,11 +27,8 @@ const STEPS: { title: string; body: string }[] = [
 
 export function HowToUse() {
   return (
-    <details
-      open
-      className="rounded-[var(--radius)] border border-border bg-surface/40 p-4"
-    >
-      <summary className="cursor-pointer font-serif text-lg text-accent">How to use</summary>
+    <details className="howto rounded-[var(--radius)] border border-border bg-surface/40 p-4">
+      <summary>How to use</summary>
       <ol className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {STEPS.map((step, i) => (
           <li key={step.title} className="flex gap-3">

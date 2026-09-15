@@ -173,6 +173,8 @@ body {
   background-color: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-sans);
+  caret-color: var(--color-accent);
+  scrollbar-color: var(--color-border) var(--color-bg);
 }
 
 body {
@@ -192,6 +194,42 @@ body {
 
 ::selection {
   background: var(--selection-bg);
+  color: var(--color-text);
+}
+
+a {
+  text-underline-offset: 0.18em;
+}
+
+/* Native how-to: hide the UA marker, draw a chevron that tracks [open]. */
+.howto > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  list-style: none;
+  cursor: pointer;
+  color: var(--color-accent);
+  font-family: var(--font-serif);
+  font-size: 1.125rem;
+  line-height: 1.3;
+}
+.howto > summary::-webkit-details-marker,
+.howto > summary::marker {
+  display: none;
+  content: "";
+}
+.howto > summary::before {
+  content: "";
+  width: 0.42rem;
+  height: 0.42rem;
+  flex-shrink: 0;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--duration-fast) var(--ease-out-expo);
+}
+.howto[open] > summary::before {
+  transform: rotate(45deg);
 }
 
 /*

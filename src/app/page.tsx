@@ -446,7 +446,7 @@ export default function Home() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-cat.svg" alt="FastBuildPOE logo" width={40} height={40} className="h-10 w-10" />
           <div>
-            <h1 className="bg-gradient-to-r from-accent to-accent-2 bg-clip-text font-serif text-2xl font-bold text-transparent">
+            <h1 className="font-serif text-2xl font-bold text-accent">
               FastBuildPOE
             </h1>
             <p className="text-sm text-muted">Trade-search links for every item in a build.</p>
@@ -488,15 +488,18 @@ export default function Home() {
                 autoFocus
                 placeholder="Type league"
                 onChange={(e) => setLeagues((prev) => ({ ...prev, [game]: e.target.value }))}
-                className="w-40 rounded-full border border-border bg-surface px-3 py-1.5 text-sm text-text outline-none focus:border-accent"
+                className="h-10 w-40 rounded-full border border-border bg-surface px-3 py-1.5 text-base text-text outline-none focus:border-accent sm:text-sm"
               />
               <button
                 type="button"
                 onClick={() => setCustomLeague(false)}
                 title="Back to league list"
-                className="rounded-full border border-border px-2 py-1.5 text-xs text-muted hover:text-text"
+                aria-label="Back to league list"
+                className="grid h-10 w-10 place-items-center rounded-full border border-border text-muted hover:text-text"
               >
-                ≡
+                <svg viewBox="0 0 16 16" aria-hidden className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                  <path d="M3 4.5h10M3 8h10M3 11.5h10" />
+                </svg>
               </button>
             </span>
           ) : (
@@ -510,7 +513,7 @@ export default function Home() {
                   setLeagues((prev) => ({ ...prev, [game]: e.target.value }));
                 }
               }}
-              className="rounded-full border border-border bg-surface px-3 py-1.5 text-sm text-text outline-none transition-colors focus:border-accent"
+              className="min-h-10 rounded-full border border-border bg-surface px-3 py-1.5 text-base text-text outline-none transition-colors focus:border-accent sm:text-sm"
             >
               {gameMeta.leagues.map((l) => (
                 <option key={l} value={l}>
@@ -524,7 +527,7 @@ export default function Home() {
           <button
             type="button"
             onClick={() => setPanelOpen(true)}
-            className="rounded-full border border-border bg-surface px-3 py-1.5 text-sm text-muted transition-colors hover:border-accent/50 hover:text-accent"
+            className="inline-flex min-h-10 items-center rounded-full border border-border bg-surface px-3 py-1.5 text-sm text-muted transition-colors hover:border-accent/50 hover:text-accent"
             title="Your saved builds"
           >
             Saved ({sessions.length})
@@ -532,7 +535,7 @@ export default function Home() {
 
           <a
             href="/market"
-            className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:bg-accent/20"
+            className="inline-flex min-h-10 items-center rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:bg-accent/20"
             title="Currency Exchange flip finder"
           >
             Market ↗
@@ -552,7 +555,6 @@ export default function Home() {
         onPriceChange={setPrice}
       >
         <main className="flex flex-1 flex-col gap-8 pb-16">
-          <HowToUse />
           <section
             aria-label="Import a build"
             className="rounded-[var(--radius)] border border-border bg-surface/60 p-5"
@@ -584,6 +586,7 @@ export default function Home() {
               game keeps its own session.
             </p>
           </section>
+          <HowToUse />
 
           {build && view ? (
             <div className="flex flex-col gap-8">

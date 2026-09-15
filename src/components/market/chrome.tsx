@@ -37,10 +37,10 @@ export function Sparkline({ data }: { data: Array<number | null> }) {
 }
 
 export const marketNavClass =
-  "rounded-full border border-border bg-surface px-3 py-1.5 text-muted transition-colors hover:border-accent/50 hover:text-accent";
+  "inline-flex min-h-10 items-center rounded-full border border-border bg-surface px-3 py-1.5 text-muted transition-colors hover:border-accent/50 hover:text-accent";
 
 export const marketNavAccentClass =
-  "rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 font-medium text-accent transition-colors hover:bg-accent/20";
+  "inline-flex min-h-10 items-center rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 font-medium text-accent transition-colors hover:bg-accent/20";
 
 export function MarketShell({
   title,
@@ -70,14 +70,14 @@ export function MarketShell({
             <p className="text-sm text-muted">{subtitle}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
           {nav}
           {leagues && leagues.length > 0 && (
             <select
               aria-label="League"
               value={league}
               onChange={(e) => onLeagueChange(e.target.value)}
-              className="rounded-full border border-border bg-surface px-3 py-1.5 text-text outline-none focus:border-accent"
+              className="min-h-10 rounded-full border border-border bg-surface px-3 py-1.5 text-base text-text outline-none focus:border-accent sm:text-sm"
             >
               {leagues.map((item) => (
                 <option key={item} value={item}>
