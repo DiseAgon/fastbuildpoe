@@ -144,10 +144,9 @@ function buildIndex(entries: StatEntry[]): StatIndex {
 export async function getStatIndex(game: GameId): Promise<StatIndex> {
   const cached = indexCache[game];
   if (cached) return cached;
-  const entries = await loadStats(game);
+  const entries = loadStats(game);
   const index = buildIndex(entries);
-  // Only cache a "real" index (the fallback is small); mirrors loadStats caching.
-  if (entries.length > 50) indexCache[game] = index;
+  indexCache[game] = index;
   return index;
 }
 

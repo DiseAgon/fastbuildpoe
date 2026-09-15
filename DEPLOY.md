@@ -17,7 +17,6 @@ npx vercel --prod     # promote to a stable production URL to share
 - It auto-detects Next.js — accept the defaults (build `next build`, output handled).
 - No environment variables are required to run. Optional ones (`.env.example`):
   - `APP_USER_AGENT` — polite UA for the live league refresh / weapon-base fetch.
-  - `POESESSID` — only needed later for live price fetch (not used yet).
 
 ## Alternative: GitHub + Vercel dashboard
 

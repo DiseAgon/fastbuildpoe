@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { MarketShell, fmt, marketNavClass } from "@/components/market/chrome";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type { BossBoard, BossCard, BossDrop, BossSection } from "@/lib/market/bosses";
 
@@ -9,12 +9,6 @@ interface BoardResponse {
   success: boolean;
   data: (BossBoard & { leagues: string[] }) | null;
   error: string | null;
-}
-
-function fmt(n: number | null, digits = 1): string {
-  if (n === null || !Number.isFinite(n)) return "—";
-  if (Math.abs(n) >= 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
-  return n.toLocaleString("en-US", { maximumFractionDigits: digits });
 }
 
 function pct(n: number | null): string {
@@ -253,53 +247,26 @@ export default function BossProfitPage() {
   useAutoRefresh(refresh);
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 sm:px-6">
-      <header className="flex flex-wrap items-center justify-between gap-4 py-5">
-        <div className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-cat.svg" alt="FastBuildPOE logo" width={36} height={36} className="h-9 w-9" />
-          <div>
-            <h1 className="font-serif text-xl font-bold text-accent">Boss Profit</h1>
-            <p className="text-sm text-muted">
-              What each uber fight costs to open vs what its drops sell for — right now.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-sm">
-          <a
-            href="/market"
-            className="rounded-full border border-border bg-surface px-3 py-1.5 text-muted transition-colors hover:border-accent/50 hover:text-accent"
-          >
+    <MarketShell
+      title="Boss Profit"
+      subtitle="What each uber fight costs to open vs what its drops sell for — right now."
+      league={league}
+      leagues={board?.leagues}
+      onLeagueChange={(next) => {
+        setLeague(next);
+        void load(next);
+      }}
+      nav={
+        <>
+          <a href="/market" className={marketNavClass}>
             ← Market flips
           </a>
-          <a
-            href="/market/breakouts"
-            className="rounded-full border border-border bg-surface px-3 py-1.5 text-muted transition-colors hover:border-accent/50 hover:text-accent"
-          >
+          <a href="/market/breakouts" className={marketNavClass}>
             Breakout Radar
           </a>
-          {board && (
-            <select
-              aria-label="League"
-              value={league}
-              onChange={(e) => {
-                setLeague(e.target.value);
-                void load(e.target.value);
-              }}
-              className="rounded-full border border-border bg-surface px-3 py-1.5 text-text outline-none focus:border-accent"
-            >
-              {board.leagues.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          )}
-          <ThemeToggle />
-        </div>
-      </header>
-
-      <main className="flex flex-1 flex-col gap-4 pb-16">
+        </>
+      }
+    >
         {board && (
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 font-semibold text-accent shadow-glow">
@@ -354,8 +321,6 @@ export default function BossProfitPage() {
             </p>
           </div>
         </details>
-      </main>
-
       <footer className="mt-auto border-t border-border/60 py-6 text-center text-xs text-muted">
         Market data by{" "}
         <a href="https://poe.ninja" className="text-accent hover:underline" target="_blank" rel="noopener noreferrer">
@@ -363,6 +328,6 @@ export default function BossProfitPage() {
         </a>{" "}
         · Fan-made tool — not affiliated with Grinding Gear Games.
       </footer>
-    </div>
+    </MarketShell>
   );
 }

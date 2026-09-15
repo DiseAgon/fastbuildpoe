@@ -13,10 +13,10 @@
  */
 
 import cxNames from "@/data/poe/cxNames.json";
+import { USER_AGENT } from "@/lib/trade/http";
 import { CX_TYPES, getFlipBoard, type OfficialPairInfo } from "./ninja";
 
 const CX_BASE = "https://web.poecdn.com/api/currency-exchange";
-const USER_AGENT = process.env.APP_USER_AGENT ?? "FastBuildPOE/0.1 (+https://fastbuildpoe.xyz)";
 const CHAOS_ID = "Metadata/Items/Currency/CurrencyRerollRare";
 const DIVINE_ID = "Metadata/Items/Currency/CurrencyModValues";
 const DIGEST_TTL_MS = 3 * 60 * 60 * 1000;

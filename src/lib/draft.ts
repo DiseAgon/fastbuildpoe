@@ -50,7 +50,7 @@ export function saveDraft(draft: Omit<Draft, "v" | "savedAt">): void {
      * Never let an empty state overwrite a draft that still holds work. The
      * autosave fires on a timer while a restore is still re-importing the
      * build, so an import that is slow or fails would otherwise wipe the very
-     * prices this exists to protect. Discarding is `clearDraft`'s job.
+     * prices this exists to protect. Discarding is `clearGameDraft`'s job.
      */
     if (!draftHasWork(payload)) {
       const existing = loadDraft();
@@ -59,14 +59,6 @@ export function saveDraft(draft: Omit<Draft, "v" | "savedAt">): void {
     localStorage.setItem(KEY, JSON.stringify(payload));
   } catch {
     /* quota or unavailable — autosave is best-effort by design */
-  }
-}
-
-export function clearDraft(): void {
-  try {
-    localStorage.removeItem(KEY);
-  } catch {
-    /* ignore */
   }
 }
 

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ImportForm } from "@/components/import/ImportForm";
-import { SignInPoe } from "@/components/import/SignInPoe";
 import { HowToUse } from "@/components/HowToUse";
 import { CategorySection } from "@/components/build/CategorySection";
 import { GemSection } from "@/components/build/GemSection";
@@ -22,7 +21,6 @@ import { clearGameTradeSelections } from "@/lib/trade/selectionSession";
 import { sumPrices } from "@/lib/build/price";
 import { useBuildPrices } from "@/hooks/useBuildPrices";
 import { SavedPanel } from "@/components/SavedPanel";
-import { FeedbackButton } from "@/components/FeedbackButton";
 import {
   addSession,
   clearSessions,
@@ -287,14 +285,6 @@ export default function Home() {
       window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
     }
   }
-
-  // Apply a parsed build that didn't come from a pasted input (e.g. character import).
-  const applyBuild = useCallback((b: ParsedBuild) => {
-    setBuilds((prev) => ({ ...prev, [b.game]: b }));
-    setActiveSetIds((prev) => ({ ...prev, [b.game]: b.activeItemSetId }));
-    setGame(b.game);
-    setError(null);
-  }, []);
 
   const restoreFromPayload = useCallback(
     (payload: SharePayload) => {
@@ -588,7 +578,6 @@ export default function Home() {
                 {error}
               </p>
             )}
-            <SignInPoe game={game} onLoad={applyBuild} />
             <p className="mt-3 text-xs text-muted">
               Viewing <span className="text-text">{GAMES[game].label}</span>
               {league ? <> · league <span className="text-text">{league}</span></> : null}. Each
@@ -746,8 +735,6 @@ export default function Home() {
           <a href="https://fastbuildpoe.xyz" className="font-medium text-accent hover:underline">
             fastbuildpoe.xyz
           </a>
-          <span aria-hidden>·</span>
-          <FeedbackButton />
         </div>
         <p className="mt-2">
           Fan-made tool — not affiliated with Grinding Gear Games. Unique and gem prices come from

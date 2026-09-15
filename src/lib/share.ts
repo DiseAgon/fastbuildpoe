@@ -6,9 +6,7 @@ import type { GameId } from "@/lib/game/registry";
  * sent to a server). The build is referenced by its original import input
  * (pobb.in link or PoB code) and re-imported on open.
  *
- * Keeping `input` a *link* rather than a pasted PoB code is what keeps the URL
- * short — see `shortenBuildInput`. Codes are still accepted so a share works
- * even when the shortener is unreachable.
+ * Current shares mint `#p=<pobb.in id>`. Old `#s=` hashes still decode here.
  */
 export interface SharePayload {
   v: 1;
@@ -93,10 +91,6 @@ function assertVersioned(parsed: { v?: number; game?: string }): void {
   }
 }
 
-export async function encodeShare(payload: SharePayload): Promise<string> {
-  return pack(payload);
-}
-
 export async function decodeShare(encoded: string): Promise<SharePayload> {
   const parsed = (await unpack(encoded)) as SharePayload;
   assertVersioned(parsed);
@@ -114,34 +108,4 @@ export async function decodeEmbeddedPrices(encoded: string): Promise<EmbeddedPri
     throw new Error("Shared paste has no prices.");
   }
   return parsed;
-}
-
-const POBBIN_LINK = /pobb\.in\/[A-Za-z0-9_-]+/i;
-
-/**
- * Reduce an import input to something short enough to live in a URL.
- *
- * A pasted PoB code is tens of kilobytes and grows by a third once base64'd,
- * which is what made share links unusable. It is uploaded to pobb.in — the same
- * paste service "Export to PoB" already uses — and the resulting link goes into
- * the payload instead. Inputs that are already links are returned untouched, so
- * nothing is uploaded that the user did not paste as a raw code.
- *
- * Falls back to the original input whenever the upload fails: a long link still
- * beats no link.
- */
-export async function shortenBuildInput(input: string, title?: string): Promise<string> {
-  const trimmed = input.trim();
-  if (!trimmed || POBBIN_LINK.test(trimmed)) return trimmed;
-  try {
-    const res = await fetch("/api/build/shorten", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input: trimmed, title }),
-    });
-    const json = (await res.json()) as { success: boolean; data: { url: string | null } | null };
-    return json.success && json.data?.url ? json.data.url : trimmed;
-  } catch {
-    return trimmed;
-  }
 }

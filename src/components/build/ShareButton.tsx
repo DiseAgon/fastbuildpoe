@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { GameId } from "@/lib/game/registry";
 import type { ItemSetView } from "@/types/item";
-import { encodeEmbeddedPrices, encodeShare, shortenBuildInput } from "@/lib/share";
+import { encodeEmbeddedPrices } from "@/lib/share";
 import { buildPriceNotes } from "@/lib/pob/priceNotes";
 import { useBuild } from "./BuildContext";
 
@@ -29,8 +29,7 @@ const POBBIN_ID = /pobb\.in\/([A-Za-z0-9_-]+)/i;
  * paste doubles as an export the recipient can open in PoB with the price table
  * already in it.
  *
- * If the upload fails the link still gets made, the long way — prices packed
- * into the hash. A long link beats no link.
+ * If the upload fails the button reports an error instead of minting a long `#s=` hash.
  */
 export function ShareButton({
   game,
@@ -85,24 +84,14 @@ export function ShareButton({
       );
 
       const pasteId = await pasteWithPrices(gamePrices);
-      let hash: string;
-      if (pasteId) {
-        hash = `#p=${pasteId}`;
-      } else {
-        const ref = await shortenBuildInput(input, title);
-        const encoded = await encodeShare({
-          v: 1,
-          game,
-          input: ref,
-          setId: view.id,
-          league,
-          prices: gamePrices,
-        });
-        hash = `#s=${encoded}`;
+      if (!pasteId) {
+        setStatus("error");
+        window.setTimeout(() => setStatus("idle"), 2000);
+        return;
       }
 
       await navigator.clipboard.writeText(
-        `${window.location.origin}${window.location.pathname}${hash}`,
+        `${window.location.origin}${window.location.pathname}#p=${pasteId}`,
       );
       setStatus("copied");
       window.setTimeout(() => setStatus("idle"), 2000);

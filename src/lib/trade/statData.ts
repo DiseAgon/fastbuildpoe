@@ -21,6 +21,6 @@ const SNAPSHOT: Record<GameId, StatEntry[]> = {
   poe2: statsPoe2 as StatEntry[],
 };
 
-export async function loadStats(game: GameId): Promise<StatEntry[]> {
+export function loadStats(game: GameId): StatEntry[] {
   return SNAPSHOT[game];
 }

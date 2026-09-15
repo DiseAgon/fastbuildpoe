@@ -30,7 +30,7 @@ each source, what it feeds, and **what needs attention when a new league starts*
 - PoE1: `https://www.pathofexile.com/api/trade`
 - PoE2: `https://www.pathofexile.com/api/trade2`
 
-PoB base-data repos (dev branch) — `registry.ts` `pobRepo`:
+PoB base-data repos (dev branch) — `scripts/snapshot.mjs`:
 - PoE1: `PathOfBuildingCommunity/PathOfBuilding`
 - PoE2: `PathOfBuildingCommunity/PathOfBuilding-PoE2`
 - Path: `src/Data/Bases/{axe,bow,claw,crossbow,dagger,flail,mace,spear,staff,sword,...}.lua`

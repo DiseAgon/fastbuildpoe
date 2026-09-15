@@ -12,6 +12,8 @@
  * NOTE: the API is public but unversioned — shapes can change between leagues.
  */
 
+import { USER_AGENT } from "@/lib/trade/http";
+
 /**
  * poe.ninja serves each game under its own prefix with the same route shapes.
  * The Currency Exchange boards are PoE1-only (PoE2 has no Faustus), so
@@ -24,7 +26,6 @@ const NINJA_BASE_BY_GAME = {
 
 const NINJA_BASE = NINJA_BASE_BY_GAME.poe1;
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const USER_AGENT = process.env.APP_USER_AGENT ?? "FastBuildPOE/0.1 (+https://fastbuildpoe.xyz)";
 
 /** Exchange categories the flip board supports (poe.ninja `type` values). */
 export const CX_TYPES = [

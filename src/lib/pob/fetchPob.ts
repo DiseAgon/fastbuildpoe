@@ -7,8 +7,7 @@
  *  - a raw PoB export code pasted directly → returned as-is
  */
 
-const USER_AGENT =
-  process.env.APP_USER_AGENT ?? "FastBuildPOE/0.1 (+https://github.com/)";
+import { USER_AGENT } from "@/lib/trade/http";
 
 const POBBIN_URL = /pobb\.in\/([A-Za-z0-9_-]+)/i;
 const BARE_ID = /^[A-Za-z0-9_-]{4,20}$/;

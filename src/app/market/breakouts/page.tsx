@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { MarketShell, Sparkline, fmt, marketNavClass } from "@/components/market/chrome";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type { BreakoutBoard, BreakoutRow } from "@/lib/market/ninja";
 
@@ -13,42 +13,9 @@ interface BoardResponse {
   error: string | null;
 }
 
-function fmt(n: number | null, digits = 1): string {
-  if (n === null || !Number.isFinite(n)) return "—";
-  if (Math.abs(n) >= 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
-  return n.toLocaleString("en-US", { maximumFractionDigits: digits });
-}
-
 function pct(n: number | null): string {
   if (n === null || !Number.isFinite(n)) return "—";
   return `${n > 0 ? "+" : ""}${n.toFixed(1)}%`;
-}
-
-function Sparkline({ data }: { data: Array<number | null> }) {
-  const points = data.filter((d): d is number => d !== null && Number.isFinite(d));
-  if (points.length < 2) return <span className="text-xs text-muted">—</span>;
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const span = max - min || 1;
-  const w = 72;
-  const h = 20;
-  const step = w / (points.length - 1);
-  const path = points
-    .map((v, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)} ${(h - ((v - min) / span) * h).toFixed(1)}`)
-    .join(" ");
-  const up = points[points.length - 1] >= points[0];
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} aria-hidden className="shrink-0">
-      <path
-        d={path}
-        fill="none"
-        stroke={up ? "var(--color-accent-2)" : "var(--color-accent)"}
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 export default function BreakoutsPage() {
@@ -143,54 +110,26 @@ export default function BreakoutsPage() {
   );
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 sm:px-6">
-      <header className="flex flex-wrap items-center justify-between gap-4 py-5">
-        <div className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-cat.svg" alt="FastBuildPOE logo" width={36} height={36} className="h-9 w-9" />
-          <div>
-            <h1 className="font-serif text-xl font-bold text-accent">Breakout Radar</h1>
-            <p className="text-sm text-muted">
-              Uniques whose price is accelerating — catch the next viral build before it peaks.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-sm">
-          <a
-            href="/market"
-            className="rounded-full border border-border bg-surface px-3 py-1.5 text-muted transition-colors hover:border-accent/50 hover:text-accent"
-          >
+    <MarketShell
+      title="Breakout Radar"
+      subtitle="Uniques whose price is accelerating — catch the next viral build before it peaks."
+      league={league}
+      leagues={board?.leagues}
+      onLeagueChange={(next) => {
+        setLeague(next);
+        void load(next);
+      }}
+      nav={
+        <>
+          <a href="/market" className={marketNavClass}>
             ← Market flips
           </a>
-          <a
-            href="/market/bosses"
-            className="rounded-full border border-border bg-surface px-3 py-1.5 text-muted transition-colors hover:border-accent/50 hover:text-accent"
-            title="Uber fragment costs vs boss drop prices"
-          >
+          <a href="/market/bosses" className={marketNavClass} title="Uber fragment costs vs boss drop prices">
             Boss Profit
           </a>
-          {board && (
-            <select
-              aria-label="League"
-              value={league}
-              onChange={(e) => {
-                setLeague(e.target.value);
-                void load(e.target.value);
-              }}
-              className="rounded-full border border-border bg-surface px-3 py-1.5 text-text outline-none focus:border-accent"
-            >
-              {board.leagues.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          )}
-          <ThemeToggle />
-        </div>
-      </header>
-
-      <main className="flex flex-1 flex-col gap-4 pb-16">
+        </>
+      }
+    >
         <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius)] border border-border bg-surface p-3 text-sm">
           <label className="sr-only" htmlFor="bo-search">
             Search uniques
@@ -347,8 +286,6 @@ export default function BreakoutsPage() {
             </p>
           </div>
         </details>
-      </main>
-
       <footer className="mt-auto border-t border-border/60 py-6 text-center text-xs text-muted">
         Market data by{" "}
         <a href="https://poe.ninja" className="text-accent hover:underline" target="_blank" rel="noopener noreferrer">
@@ -356,6 +293,6 @@ export default function BreakoutsPage() {
         </a>{" "}
         · Fan-made tool — not affiliated with Grinding Gear Games.
       </footer>
-    </div>
+    </MarketShell>
   );
 }

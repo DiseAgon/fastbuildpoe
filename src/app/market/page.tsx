@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { MarketShell, Sparkline, fmt, marketNavAccentClass, marketNavClass } from "@/components/market/chrome";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type { FlipBoard, FlipRow } from "@/lib/market/ninja";
 
@@ -24,39 +24,6 @@ interface BoardResponse {
   success: boolean;
   data: (FlipBoard & { leagues: string[] }) | null;
   error: string | null;
-}
-
-function fmt(n: number | null, digits = 1): string {
-  if (n === null || !Number.isFinite(n)) return "—";
-  if (Math.abs(n) >= 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
-  return n.toLocaleString("en-US", { maximumFractionDigits: digits });
-}
-
-function Sparkline({ data }: { data: Array<number | null> }) {
-  const points = data.filter((d): d is number => d !== null && Number.isFinite(d));
-  if (points.length < 2) return <span className="text-xs text-muted">—</span>;
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const span = max - min || 1;
-  const w = 72;
-  const h = 20;
-  const step = w / (points.length - 1);
-  const path = points
-    .map((v, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)} ${(h - ((v - min) / span) * h).toFixed(1)}`)
-    .join(" ");
-  const up = points[points.length - 1] >= points[0];
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} aria-hidden className="shrink-0">
-      <path
-        d={path}
-        fill="none"
-        stroke={up ? "var(--color-accent-2)" : "var(--color-accent)"}
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 /**
@@ -274,75 +241,35 @@ export default function MarketPage() {
   );
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 sm:px-6">
-      <header className="flex flex-wrap items-center justify-between gap-4 py-5">
-        <div className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-cat.svg" alt="FastBuildPOE logo" width={36} height={36} className="h-9 w-9" />
-          <div>
-            <h1 className="font-serif text-xl font-bold text-accent">Market Flips</h1>
-            <p className="text-sm text-muted">
-              Currency Exchange loop finder — divine ⇄ chaos ⇄ item, all in-game.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-sm">
-          <a
-            href="/"
-            className="rounded-full border border-border bg-surface px-3 py-1.5 text-muted transition-colors hover:border-accent/50 hover:text-accent"
-          >
+    <MarketShell
+      title="Market Flips"
+      subtitle="Currency Exchange loop finder — divine ⇄ chaos ⇄ item, all in-game."
+      league={league}
+      leagues={board?.leagues}
+      onLeagueChange={(next) => {
+        setLeague(next);
+        void load(type, next);
+      }}
+      nav={
+        <>
+          <a href="/" className={marketNavClass}>
             ← Build pricer
           </a>
-          <a
-            href="/market/breakouts"
-            className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 font-medium text-accent transition-colors hover:bg-accent/20"
-            title="Uniques with accelerating prices — viral-build detector"
-          >
+          <a href="/market/breakouts" className={marketNavAccentClass} title="Uniques with accelerating prices — viral-build detector">
             Breakout Radar
           </a>
-          <a
-            href="/market/bosses"
-            className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 font-medium text-accent transition-colors hover:bg-accent/20"
-            title="Uber fragment costs vs boss drop prices"
-          >
+          <a href="/market/bosses" className={marketNavAccentClass} title="Uber fragment costs vs boss drop prices">
             Boss Profit
           </a>
-          <a
-            href="/market/pairs"
-            className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 font-medium text-accent transition-colors hover:bg-accent/20"
-            title="Official GGG exchange ledger — per-pair gap, depth and volume"
-          >
+          <a href="/market/pairs" className={marketNavAccentClass} title="Official GGG exchange ledger — per-pair gap, depth and volume">
             Pair Explorer
           </a>
-          <a
-            href="/market/picks"
-            className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 font-medium text-accent transition-colors hover:bg-accent/20"
-            title="Best flip per item across loop and spread strategies"
-          >
+          <a href="/market/picks" className={marketNavAccentClass} title="Best flip per item across loop and spread strategies">
             Flip Picks
           </a>
-          {board && (
-            <select
-              aria-label="League"
-              value={league}
-              onChange={(e) => {
-                setLeague(e.target.value);
-                void load(type, e.target.value);
-              }}
-              className="rounded-full border border-border bg-surface px-3 py-1.5 text-text outline-none focus:border-accent"
-            >
-              {board.leagues.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          )}
-          <ThemeToggle />
-        </div>
-      </header>
-
-      <main className="flex flex-1 flex-col gap-4 pb-16">
+        </>
+      }
+    >
         <div className="flex flex-wrap items-center gap-1 rounded-[var(--radius)] border border-border bg-surface p-1">
           {TYPE_TABS.map((t) => (
             <button
@@ -585,8 +512,6 @@ export default function MarketPage() {
             </p>
           </div>
         </details>
-      </main>
-
       <footer className="mt-auto border-t border-border/60 py-6 text-center text-xs text-muted">
         Market data by{" "}
         <a href="https://poe.ninja" className="text-accent hover:underline" target="_blank" rel="noopener noreferrer">
@@ -594,6 +519,6 @@ export default function MarketPage() {
         </a>{" "}
         · Fan-made tool — not affiliated with Grinding Gear Games.
       </footer>
-    </div>
+    </MarketShell>
   );
 }

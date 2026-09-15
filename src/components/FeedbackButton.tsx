@@ -22,17 +22,8 @@ const CATEGORIES = [
 
 type Category = (typeof CATEGORIES)[number]["id"];
 
-/**
- * "link" is the inline footer wording; "floating" is the button that follows the
- * page.
- *
- * The footer link was the only way in, which meant scrolling past an entire
- * priced build to reach it — and the market pages had no way in at all. The
- * floating variant is mounted once in the root layout, so every page has it.
- */
-export type FeedbackVariant = "link" | "floating";
-
-export function FeedbackButton({ variant = "link" }: { variant?: FeedbackVariant }) {
+/** Floating report button, mounted once in the root layout. */
+export function FeedbackButton() {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [contact, setContact] = useState("");
@@ -82,37 +73,26 @@ export function FeedbackButton({ variant = "link" }: { variant?: FeedbackVariant
 
   return (
     <>
-      {variant === "floating" ? (
-        <button
-          type="button"
-          onClick={openDialog}
-          aria-haspopup="dialog"
-          title="Report a bug, a wrong item, or an idea"
-          className="group fixed bottom-4 right-4 z-30 flex items-center gap-2 rounded-full border border-accent/40 bg-surface/95 py-2 pl-3 pr-3 text-sm text-muted shadow-card backdrop-blur transition-colors duration-[var(--duration-fast)] hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent sm:pr-4"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden className="h-4 w-4 shrink-0">
-            <path
-              d="M21 12a8 8 0 0 1-8 8H7l-4 3 1.2-4.2A8 8 0 1 1 21 12z"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span className="hidden font-medium sm:inline">Feedback</span>
-          <span className="sr-only sm:hidden">Send feedback</span>
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={openDialog}
-          aria-haspopup="dialog"
-          className="text-muted underline-offset-2 hover:text-accent hover:underline"
-        >
-          Send feedback
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={openDialog}
+        aria-haspopup="dialog"
+        title="Report a bug, a wrong item, or an idea"
+        className="group fixed bottom-4 right-4 z-30 flex items-center gap-2 rounded-full border border-accent/40 bg-surface/95 py-2 pl-3 pr-3 text-sm text-muted shadow-card backdrop-blur transition-colors duration-[var(--duration-fast)] hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent sm:pr-4"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden className="h-4 w-4 shrink-0">
+          <path
+            d="M21 12a8 8 0 0 1-8 8H7l-4 3 1.2-4.2A8 8 0 1 1 21 12z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        <span className="hidden font-medium sm:inline">Feedback</span>
+        <span className="sr-only sm:hidden">Send feedback</span>
+      </button>
 
       {open && (
         <div

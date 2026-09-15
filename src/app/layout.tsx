@@ -55,7 +55,7 @@ export default function RootLayout({
         {/* Mounted here rather than per page: the market pages had no way to
             report anything, and on the build page the only one was a footer
             link below a whole priced build. */}
-        <FeedbackButton variant="floating" />
+        <FeedbackButton />
         <Analytics />
       </body>
     </html>

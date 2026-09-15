@@ -1,5 +1,4 @@
-const USER_AGENT =
-  process.env.APP_USER_AGENT ?? "FastBuildPOE/0.1 (+https://fastbuildpoe.xyz)";
+import { USER_AGENT } from "@/lib/trade/http";
 
 /**
  * Create a pobb.in paste from a PoB code (anonymous). Returns the share URL,
