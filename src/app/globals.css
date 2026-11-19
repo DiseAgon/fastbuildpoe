@@ -392,6 +392,10 @@ select optgroup {
 .gear-slot__plate img {
   height: 100%;
   width: 100%;
+  /* Grid items default to min-size: auto, so a tall icon (boots, body, sceptre)
+     refuses to shrink and the plate clips the bottom half. */
+  min-height: 0;
+  min-width: 0;
   object-fit: contain;
   /* Item art is drawn for dark backgrounds; a touch of contrast keeps it from
      washing out on cream without altering the colours. In dark mode the token

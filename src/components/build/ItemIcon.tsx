@@ -75,7 +75,7 @@ export function ItemIcon({
         height={size}
         loading="lazy"
         decoding="async"
-        className="h-full w-full object-contain"
+        className="h-full w-full min-h-0 min-w-0 object-contain"
       />
     </span>
   );
