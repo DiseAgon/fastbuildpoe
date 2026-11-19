@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MarketShell, Sparkline, fmt, marketNavAccentClass, marketNavClass } from "@/components/market/chrome";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { artSrc } from "@/lib/market/artSrc";
 import type { FlipBoard, FlipRow } from "@/lib/market/ninja";
 
 const TYPE_TABS: Array<{ id: string; label: string }> = [
@@ -411,7 +412,7 @@ export default function MarketPage() {
                       <span className="flex items-center gap-2">
                         {r.image ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={r.image} alt="" width={24} height={24} className="h-6 w-6" loading="lazy" />
+                          <img src={artSrc(r.image) ?? ""} alt="" width={24} height={24} className="h-6 w-6" loading="lazy" />
                         ) : (
                           <span className="inline-block h-6 w-6 rounded bg-surface-raised" aria-hidden />
                         )}

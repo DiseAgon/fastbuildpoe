@@ -1,17 +1,19 @@
 "use client";
 
+import { artSrc } from "@/lib/market/artSrc";
 import { useBuild } from "./BuildContext";
 
 /** Divine Orb icon for the active game (PoE1 and PoE2 use different art). */
 export function DivineIcon({ className = "" }: { className?: string }) {
   const { divineIcon } = useBuild();
-  if (!divineIcon) {
+  const src = artSrc(divineIcon);
+  if (!src) {
     return <span className={`text-xs text-accent ${className}`}>div</span>;
   }
   return (
     // eslint-disable-next-line @next/next/no-img-element -- external CDN, sized inline
     <img
-      src={divineIcon}
+      src={src}
       alt="Divine Orb"
       width={18}
       height={18}

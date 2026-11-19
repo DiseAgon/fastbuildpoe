@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { MarketShell, fmt, marketNavClass } from "@/components/market/chrome";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { artSrc } from "@/lib/market/artSrc";
 import type { BossBoard, BossCard, BossDrop, BossSection } from "@/lib/market/bosses";
 
 interface BoardResponse {
@@ -77,7 +78,7 @@ function CostGroupRow({
           <span key={item.label} className="inline-flex items-center gap-1 text-muted">
             {item.icon && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={item.icon} alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" loading="lazy" />
+              <img src={artSrc(item.icon) ?? ""} alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" loading="lazy" />
             )}
             <span>
               {item.qty}× {item.label}
@@ -109,7 +110,7 @@ function DropRow({ drop, divinePrice }: { drop: BossDrop; divinePrice: number | 
         <span className="flex items-center gap-2">
           {drop.icon ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={drop.icon} alt="" width={24} height={24} className="h-6 w-6 object-contain" loading="lazy" />
+            <img src={artSrc(drop.icon) ?? ""} alt="" width={24} height={24} className="h-6 w-6 object-contain" loading="lazy" />
           ) : (
             <span className="inline-block h-6 w-6 rounded bg-surface-raised" aria-hidden />
           )}

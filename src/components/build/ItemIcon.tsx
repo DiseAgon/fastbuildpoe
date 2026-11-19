@@ -1,6 +1,7 @@
 "use client";
 
 import type { ItemCategory, Rarity } from "@/types/item";
+import { artSrc } from "@/lib/market/artSrc";
 import { RARITY_BORDER_CLASS } from "@/lib/rarity";
 
 /**
@@ -47,7 +48,8 @@ export function ItemIcon({
 }) {
   const box = { width: size, height: size };
   const plate = bare ? "" : `rounded-md border bg-bg/60 ${RARITY_BORDER_CLASS[rarity]}`;
-  if (!icon) {
+  const src = artSrc(icon);
+  if (!src) {
     return (
       <span
         style={box}
@@ -67,7 +69,7 @@ export function ItemIcon({
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={icon}
+        src={src}
         alt={alt}
         width={size}
         height={size}

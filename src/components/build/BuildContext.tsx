@@ -134,7 +134,9 @@ export function useBuild(): BuildContextValue {
   return ctx;
 }
 
-/** Format a divine amount: drop trailing .0, keep one decimal otherwise. */
+/** Format a divine amount. Sub-0.1 stays two decimals so 0.03 is not shown as 0.0. */
 export function formatDivine(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  if (!Number.isFinite(value)) return "";
+  const digits = Math.abs(value) > 0 && Math.abs(value) < 0.1 ? 2 : 1;
+  return value.toFixed(digits).replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
 }

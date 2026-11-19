@@ -236,6 +236,9 @@ export interface NinjaStashLine {
   gemQuality?: number;
   corrupted?: boolean;
   variant?: string | null;
+  /** Mods that distinguish a priced roll. `optional` marks a mod the line does not require. */
+  explicitModifiers?: Array<{ text?: string; optional?: boolean }>;
+  mutatedModifiers?: Array<{ text?: string; optional?: boolean }>;
   sparkLine?: { totalChange?: number | null; data?: Array<number | null> };
 }
 

@@ -61,9 +61,11 @@ export function extractPriceData(notes: string): string | null {
   return notes.match(DATA_LINE)?.[1] ?? null;
 }
 
-/** Round a divine amount the way the UI does: no trailing .0, else one decimal. */
+/** Round a divine amount the way the UI does. Sub-0.1 keeps two decimals. */
 function formatDivine(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  if (!Number.isFinite(value)) return "";
+  const digits = Math.abs(value) > 0 && Math.abs(value) < 0.1 ? 2 : 1;
+  return value.toFixed(digits).replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
 }
 
 /**

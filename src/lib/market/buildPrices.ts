@@ -22,11 +22,13 @@ import {
   type NinjaStashLine,
 } from "./ninja";
 import {
+  groupUniqueLines,
   indexBaseIcons,
   indexGemTiers,
   indexUniques,
   nearestGemTier,
   norm,
+  pickUniqueLine,
   resolveBaseIcon,
   type UniqueAgg,
 } from "./priceIndex";
@@ -44,6 +46,10 @@ export interface PriceableItem {
   gemLevel?: number;
   quality?: number;
   corrupted?: boolean;
+  /** Largest linked socket group. 5 and 6 select a ninja link-tier row. */
+  links?: number;
+  /** Mod lines, used to pick a Foulborn / variant row. */
+  mods?: string[];
 }
 
 export type PriceSource = "unique" | "gem" | "none";
@@ -138,12 +144,12 @@ export async function priceBuildItems(
       ...UNIQUE_TYPES.map((t) => stashLines(league, t)),
     ]);
 
-  const uniques = indexUniques(uniqueSets);
+  const uniqueLines = groupUniqueLines(uniqueSets);
   const viscera = indexUniques([visceraLines]);
   const gemTiers = indexGemTiers([...gemLines, ...imbuedLines]);
   const baseIcons = indexBaseIcons([baseLines, clusterLines, flaskLines]);
 
-  if (uniques.size === 0 && gemTiers.size === 0) {
+  if (uniqueLines.size === 0 && gemTiers.size === 0) {
     return {
       supported: false,
       league,
@@ -183,15 +189,30 @@ export async function priceBuildItems(
     }
 
     // Uniques are keyed on the unique's own name, not the base type.
-    // PoB prefixes a mutated unique with "Foulborn "; ninja keeps the real name.
-    const uniqueName = item.name.replace(/^foulborn\s+/i, "");
-    const agg =
-      item.rarity === "unique"
-        ? uniques.get(norm(uniqueName)) ?? uniques.get(norm(item.name))
-        : undefined;
-    if (agg) {
-      const quote = quoteUnique(item, agg, divinePrice);
-      return { ...quote, icon: quote.icon ?? baseIcon };
+    // A Foulborn item has its own ninja rows ("Foulborn X"); only fall back to
+    // the base name when ninja never split that unique out.
+    if (item.rarity === "unique") {
+      const lines =
+        uniqueLines.get(norm(item.name)) ??
+        uniqueLines.get(norm(item.name.replace(/^foulborn\s+/i, "")));
+      if (lines) {
+        const picked = pickUniqueLine(lines, {
+          links: item.links,
+          baseType: item.baseType,
+          mods: item.mods,
+        });
+        const chaos = picked.line.chaosValue ?? null;
+        return {
+          key: item.key,
+          chaos,
+          divine: chaos !== null && divinePrice && divinePrice > 0 ? chaos / divinePrice : null,
+          icon: picked.line.icon ?? baseIcon,
+          approx: picked.approx,
+          source: "unique",
+          listings: picked.line.listingCount ?? null,
+          note: picked.approx ? "several priced rolls — showing the closest" : undefined,
+        };
+      }
     }
 
     const visceraName = viscera.get(norm(item.name)) ?? viscera.get(norm(item.baseType));

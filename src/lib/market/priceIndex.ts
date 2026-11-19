@@ -13,8 +13,13 @@
 
 import type { NinjaStashLine } from "./ninja";
 
-/** Case/punctuation-insensitive key — poe.ninja and PoB disagree on apostrophes. */
-export const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+/**
+ * Case/punctuation-insensitive key. PoB and poe.ninja disagree on apostrophes
+ * and on diacritics (PoB writes "Doppelganger", ninja writes "Doppelgänger").
+ * Fold marks first so the letter under the accent survives the strip.
+ */
+export const norm = (s: string): string =>
+  s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
 export interface UniqueAgg {
   chaos: number;
@@ -25,6 +30,21 @@ export interface UniqueAgg {
   variants: number;
 }
 
+/** Every priced line of a unique name. Callers pick the row that matches the item. */
+export function groupUniqueLines(lineSets: NinjaStashLine[][]): Map<string, NinjaStashLine[]> {
+  const byKey = new Map<string, NinjaStashLine[]>();
+  for (const lines of lineSets) {
+    for (const line of lines) {
+      if (!line.name || !line.chaosValue || line.chaosValue <= 0) continue;
+      const key = norm(line.name);
+      const list = byKey.get(key);
+      if (list) list.push(line);
+      else byKey.set(key, [line]);
+    }
+  }
+  return byKey;
+}
+
 /**
  * poe.ninja splits a unique into one price line per link tier (…-5l, …-6l).
  * An item drops unlinked, so the 5L/6L lines price the linking, not the item —
@@ -32,14 +52,7 @@ export interface UniqueAgg {
  * unlinked line and count only genuine `variant` labels as variants.
  */
 export function indexUniques(lineSets: NinjaStashLine[][]): Map<string, UniqueAgg> {
-  const byKey = new Map<string, NinjaStashLine[]>();
-  for (const lines of lineSets) {
-    for (const line of lines) {
-      if (!line.name || !line.chaosValue || line.chaosValue <= 0) continue;
-      const key = norm(line.name);
-      byKey.set(key, [...(byKey.get(key) ?? []), line]);
-    }
-  }
+  const byKey = groupUniqueLines(lineSets);
 
   const map = new Map<string, UniqueAgg>();
   for (const [key, lines] of byKey) {
@@ -57,6 +70,88 @@ export function indexUniques(lineSets: NinjaStashLine[][]): Map<string, UniqueAg
     });
   }
   return map;
+}
+
+/** Ninja only publishes separate rows for 5-links and 6-links. */
+function linkTier(links: number | undefined): number {
+  return links !== undefined && links >= 5 ? links : 0;
+}
+
+/**
+ * Compare mod text loosely enough that "(40-60)% more …" matches "43% more …"
+ * and a newline PoB split still contains the ninja sentence.
+ */
+function modKey(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, "#")
+    .replace(/-?\d+(?:\.\d+)?/g, "#")
+    .replace(/[^a-z#]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function lineMods(line: NinjaStashLine): string[] {
+  const mods = [...(line.explicitModifiers ?? []), ...(line.mutatedModifiers ?? [])];
+  const keys: string[] = [];
+  for (const mod of mods) {
+    if (!mod.text || mod.optional) continue;
+    const key = modKey(mod.text);
+    // A bare "#" matches everything. Real distinguishing mods are sentences.
+    if (key.replace(/[# ]/g, "").length < 6) continue;
+    keys.push(key);
+  }
+  return keys;
+}
+
+function byListings(a: NinjaStashLine, b: NinjaStashLine): number {
+  return (b.listingCount ?? 0) - (a.listingCount ?? 0);
+}
+
+/**
+ * Pick the ninja row for one item in a build.
+ *
+ * Link tier first (a 6-link is not the unlinked price), then base type, then
+ * the row whose required mods all appear on the item. The most specific such
+ * row wins, so a Foulborn roll is not priced as the base unique.
+ *
+ * ponytail: one overview row per name (Watcher's Eye, Light of Meaning) has no
+ * per-roll price here. Matching mods cannot invent one.
+ */
+export function pickUniqueLine(
+  lines: NinjaStashLine[],
+  want: { links?: number; baseType?: string; mods?: string[] },
+): { line: NinjaStashLine; approx: boolean } {
+  const wanted = linkTier(want.links);
+  let pool = lines.filter((line) => linkTier(line.links) === wanted);
+  if (pool.length === 0) pool = lines.filter((line) => linkTier(line.links) === 0);
+  if (pool.length === 0) pool = [...lines];
+
+  if (want.baseType) {
+    const base = norm(want.baseType);
+    const sameBase = pool.filter((line) => line.baseType && norm(line.baseType) === base);
+    if (sameBase.length > 0) pool = sameBase;
+  }
+
+  const blob = modKey((want.mods ?? []).join(" "));
+  const matched = blob
+    ? pool.filter((line) => {
+        const keys = lineMods(line);
+        return keys.length > 0 && keys.every((key) => blob.includes(key));
+      })
+    : [];
+
+  const pricesDiffer = (rows: NinjaStashLine[]): boolean =>
+    new Set(rows.map((line) => line.chaosValue)).size > 1;
+
+  if (matched.length > 0) {
+    const best = Math.max(...matched.map((line) => lineMods(line).length));
+    const specific = matched.filter((line) => lineMods(line).length === best).sort(byListings);
+    return { line: specific[0], approx: pricesDiffer(specific) };
+  }
+
+  const fallback = [...pool].sort(byListings);
+  return { line: fallback[0], approx: pricesDiffer(pool) };
 }
 
 /** Boss-dropped gems: price the drop state (uncorrupted, level 1, no quality). */

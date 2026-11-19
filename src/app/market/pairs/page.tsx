@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MarketShell, fmt, marketNavClass } from "@/components/market/chrome";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { artSrc } from "@/lib/market/artSrc";
 import type { PairBoard, PairRow } from "@/lib/market/officialCx";
 
 type SortKey = "volumeChaos" | "gapPct" | "stockBase";
@@ -273,7 +274,7 @@ export default function PairExplorerPage() {
                       <span className="flex items-center gap-2">
                         {r.baseIcon ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={r.baseIcon} alt="" width={26} height={26} className="h-[26px] w-[26px] object-contain" loading="lazy" />
+                          <img src={artSrc(r.baseIcon) ?? ""} alt="" width={26} height={26} className="h-[26px] w-[26px] object-contain" loading="lazy" />
                         ) : (
                           <span className="inline-block h-6 w-6 rounded bg-surface-raised" aria-hidden />
                         )}

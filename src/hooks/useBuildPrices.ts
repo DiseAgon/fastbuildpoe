@@ -5,6 +5,7 @@ import type { GameId } from "@/lib/game/registry";
 import type { ParsedItem } from "@/types/item";
 import type { BuildPriceResult, ItemQuote } from "@/lib/market/buildPrices";
 import { itemKey } from "@/lib/build/itemKey";
+import { itemSocketCounts } from "@/lib/trade/socketOptions";
 
 interface PricesResponse {
   success: boolean;
@@ -58,6 +59,8 @@ export function useBuildPrices(
       gemLevel: item.gemLevel,
       quality: item.quality,
       corrupted: item.corrupted,
+      links: itemSocketCounts(item.sockets).links,
+      mods: item.mods.map((mod) => mod.text).slice(0, 40),
     }));
   }, [game, items]);
 

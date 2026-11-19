@@ -33,6 +33,13 @@ function toPriceable(raw: unknown): PriceableItem | null {
     gemLevel: num(r.gemLevel),
     quality: num(r.quality),
     corrupted: r.corrupted === true,
+    links:
+      typeof r.links === "number" && r.links >= 0 && r.links <= 6
+        ? Math.floor(r.links)
+        : undefined,
+    mods: Array.isArray(r.mods)
+      ? r.mods.filter((m): m is string => typeof m === "string").slice(0, 40).map((m) => m.slice(0, 240))
+      : undefined,
   };
 }
 
