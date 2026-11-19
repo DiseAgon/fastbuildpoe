@@ -92,8 +92,32 @@ const META_KEYS = new Set([
   "prefix",
   "suffix",
   "selected variant",
+  "selected variant group",
+  "selected version",
+  "selected alt variant",
+  "selected alt variant two",
+  "selected alt variant three",
+  "selected alt variant four",
+  "selected alt variant five",
+  "has alt variant two",
+  "has alt variant three",
+  "has alt variant four",
+  "has alt variant five",
+  "allow duplicate variants",
+  "version",
   "variant",
   "league",
+  "memory strands",
+  "note",
+  "unreleased",
+  "upgrade",
+  "intangibility",
+  "cluster jewel skill",
+  "cluster jewel node count",
+  "armourbasepercentile",
+  "evasionbasepercentile",
+  "energyshieldbasepercentile",
+  "wardbasepercentile",
   "source",
   "catalyst",
   "catalystquality",
@@ -115,7 +139,11 @@ const META_KEYS = new Set([
 /** Standalone flag lines that are item properties, not mods. */
 const INFLUENCE_LINE =
   /^(Shaper|Elder|Crusader|Hunter|Redeemer|Warlord|Searing Exarch|Eater of Worlds) Item$/i;
-const FLAG_LINE = /^(Synthesised Item|Fractured Item|Vestigial Item|Foulborn Item|Mirrored|Split|Foil Unique(?: \([^)]*\))?)$/i;
+const FLAG_LINE =
+  /^(Synthesised Item|Fractured Item|Vestigial Item|Foulborn Item|Mirrored|Split|Unidentified|Veiled Prefix|Veiled Suffix|Double Corrupted|Foil Unique(?: \([^)]*\))?)$/i;
+/** Slot label / hint on a game-clipboard Viscera. Not a modifier. */
+const VISCERA_LABEL = /^(Head|Torso|Upper Limb|Lower Limb)$/;
+const WICKERMAN_HINT = /^Take this to the Wickerman\b/i;
 /**
  * Class restriction. PoB writes it both above the `Implicits:` count and as a
  * mod line below it, and it is counted in neither — treating it as a mod ended
@@ -156,18 +184,113 @@ function detectModType(annotations: string[], isImplicit: boolean): ModType {
   return isImplicit ? "implicit" : "explicit";
 }
 
-/** Returns the variant ids referenced by a `{variant:a,b}` annotation, if any. */
-function variantIds(annotations: string[]): number[] | null {
+function idList(raw: string): number[] {
+  return raw
+    .split(",")
+    .map((n) => Number.parseInt(n.trim(), 10))
+    .filter((n) => Number.isFinite(n));
+}
+
+/** `{variant:}` / `{group:}` / `{version:}` on one PoB line. Absent means "no tag". */
+interface LineVariant {
+  variants: number[] | null;
+  groups: number[] | null;
+  versions: number[] | null;
+}
+
+function lineVariant(annotations: string[]): LineVariant {
+  let variants: number[] | null = null;
+  let groups: number[] | null = null;
+  let versions: number[] | null = null;
   for (const a of annotations) {
-    if (a.startsWith("variant:")) {
-      return a
-        .slice("variant:".length)
-        .split(",")
-        .map((n) => Number.parseInt(n, 10))
-        .filter((n) => Number.isFinite(n));
+    if (a.startsWith("variant:")) variants = idList(a.slice("variant:".length));
+    else if (a.startsWith("group:")) groups = idList(a.slice("group:".length));
+    else if (a.startsWith("version:")) versions = idList(a.slice("version:".length));
+  }
+  return { variants, groups, versions };
+}
+
+/**
+ * Which variant lines belong on the item. Mirrors PoB `CheckModLineVariant`.
+ *
+ * 3.30 uniques select mods with `Selected Variant Group` / `Selected Version`
+ * instead of one `Selected Variant`. Keeping every `{variant:}` line makes a
+ * trade search require mutually exclusive mods.
+ */
+interface VariantSelection {
+  usesGroups: boolean;
+  selectedVariant?: number;
+  altVariants: number[];
+  selectedVersion?: number;
+  groups: Map<number, number>;
+}
+
+const ALT_VARIANT_KEYS = [
+  "selected alt variant",
+  "selected alt variant two",
+  "selected alt variant three",
+  "selected alt variant four",
+  "selected alt variant five",
+];
+
+function readVariantSelection(body: string[]): VariantSelection {
+  const groups = new Map<number, number>();
+  const altVariants: number[] = [];
+  let selectedVariant: number | undefined;
+  let selectedVersion: number | undefined;
+  let usesGroups = false;
+  for (const line of body) {
+    const annotations = extractAnnotations(line);
+    if (annotations.some((a) => a.startsWith("group:") || a.startsWith("version:"))) {
+      usesGroups = true;
+    }
+    const meta = asMeta(line);
+    if (!meta) continue;
+    if (meta.key === "selected variant") {
+      const n = Number.parseInt(meta.value, 10);
+      if (Number.isFinite(n)) selectedVariant = n;
+    } else if (meta.key === "selected version") {
+      usesGroups = true;
+      const n = Number.parseInt(meta.value, 10);
+      if (Number.isFinite(n)) selectedVersion = n;
+    } else if (meta.key === "selected variant group") {
+      usesGroups = true;
+      const match = meta.value.match(/^(\d+)\s*=\s*(\d+)$/);
+      if (match) groups.set(Number(match[1]), Number(match[2]));
+    } else if (ALT_VARIANT_KEYS.includes(meta.key)) {
+      const n = Number.parseInt(meta.value, 10);
+      if (Number.isFinite(n)) altVariants.push(n);
     }
   }
-  return null;
+  return { usesGroups, selectedVariant, altVariants, selectedVersion, groups };
+}
+
+/** PoB `CheckModLineVariant`: drop lines that belong to another variant. */
+function keepVariantLine(spec: LineVariant, sel: VariantSelection): boolean {
+  if (sel.usesGroups) {
+    if (
+      spec.versions &&
+      (sel.selectedVersion === undefined || !spec.versions.includes(sel.selectedVersion))
+    ) {
+      return false;
+    }
+    if (spec.groups) {
+      if (!spec.variants) return false;
+      for (const groupId of spec.groups) {
+        const picked = sel.groups.get(groupId);
+        if (picked !== undefined && spec.variants.includes(picked)) return true;
+      }
+      return false;
+    }
+    return !spec.variants;
+  }
+  if (!spec.variants) return true;
+  const selected = [sel.selectedVariant, ...sel.altVariants].filter(
+    (n): n is number => n !== undefined,
+  );
+  // No selection at all: old exports that list variants but never pick one.
+  if (selected.length === 0) return true;
+  return spec.variants.some((id) => selected.includes(id));
 }
 
 function extractAnnotations(line: string): string[] {
@@ -233,28 +356,59 @@ function normalizeRarity(value: string): Rarity {
 
 export function parseItemText(raw: string, slot?: string): ParsedItem | null {
   const lines = raw
+    .replace(/\u200b/g, "")
     .split("\n")
-    .map((l) => l.replace(/\r$/, "").trimEnd())
+    .map((l) => l.replace(/\r$/, "").trim())
     .filter((l, i, arr) => !(l === "" && (i === 0 || arr[i - 1] === "")));
 
   // Drop separator lines used in some exports.
   const body = lines.filter((l) => l.trim() !== "" && !/^-{3,}$/.test(l));
   if (body.length === 0) return null;
 
-  const rarityMeta = asMeta(body[0]);
-  if (!rarityMeta || rarityMeta.key !== "rarity") return null;
-  const rarity = normalizeRarity(rarityMeta.value);
+  // Game clipboard (3.30+) leads with `Item Class:` before `Rarity:`. Viscera
+  // can omit Rarity entirely; PoB treats that as a normal item.
+  let itemClass: string | undefined;
+  if (/^item class:/i.test(body[0].replace(ANNOTATION, "").trim())) {
+    itemClass = body[0].replace(ANNOTATION, "").replace(/^item class:\s*/i, "").trim();
+    body.shift();
+  }
+  if (body.length === 0) return null;
 
-  // Name / base type: the lines between rarity and the first metadata-shaped line.
-  let cursor = 1;
+  const rarityMeta = asMeta(body[0]);
+  let rarity: Rarity;
+  let cursor: number;
+  if (rarityMeta?.key === "rarity") {
+    rarity = normalizeRarity(rarityMeta.value);
+    cursor = 1;
+  } else if (itemClass && /viscera/i.test(itemClass)) {
+    rarity = "normal";
+    cursor = 0;
+  } else {
+    return null;
+  }
+  // PoB's item set names these slots Head / Body / Arm / Leg (ItemsTab),
+  // not "Wickerman Head". The game clipboard uses Item Class: Viscera.
+  const visceraItem =
+    /^(?:wickerman\b.*|head|body|arm|leg)$/i.test(slot ?? "") ||
+    /viscera/i.test(itemClass ?? "");
+  const selection = readVariantSelection(body);
+  const isNonModLabel = (line: string): boolean => {
+    const cleaned = line.replace(ANNOTATION, "").trim();
+    if (WICKERMAN_HINT.test(cleaned)) return true;
+    return visceraItem && VISCERA_LABEL.test(cleaned);
+  };
+
+  // Name / base type sit before the first known metadata key. A rare's name
+  // may itself contain a colon ("Leveling: minion wand"); stopping on every
+  // `Key: value` line drops the item. Unknown keys are skipped later.
   const heading: string[] = [];
   while (
     cursor < body.length &&
     asMeta(body[cursor]) === null &&
-    !META_SHAPED.test(body[cursor].replace(ANNOTATION, "").trim()) &&
     !INFLUENCE_LINE.test(body[cursor].replace(ANNOTATION, "").trim()) &&
     !FLAG_LINE.test(body[cursor].replace(ANNOTATION, "").trim()) &&
-    !CLASS_REQUIREMENT_LINE.test(body[cursor].replace(ANNOTATION, "").trim())
+    !CLASS_REQUIREMENT_LINE.test(body[cursor].replace(ANNOTATION, "").trim()) &&
+    !isNonModLabel(body[cursor])
   ) {
     heading.push(body[cursor].replace(ANNOTATION, "").trim());
     cursor++;
@@ -286,7 +440,7 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
   let sockets: string | undefined;
   let levelReq: number | undefined;
   let implicitCount = 0;
-  let selectedVariant: number | undefined;
+  let passedImplicits = false;
   let corrupted = false;
   const influences: string[] = [];
   const defences: NonNullable<ParsedItem["defences"]> = {};
@@ -310,9 +464,7 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
           break;
         case "implicits":
           implicitCount = Number.parseInt(meta.value, 10) || 0;
-          break;
-        case "selected variant":
-          selectedVariant = Number.parseInt(meta.value, 10) || undefined;
+          passedImplicits = true;
           break;
         case "armour":
           defences.armour = Number.parseInt(meta.value, 10) || undefined;
@@ -342,15 +494,28 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
       influences.push(infMeta[1]);
       continue;
     }
-    if (FLAG_LINE.test(cleanedMeta)) continue;
-    if (CLASS_REQUIREMENT_LINE.test(cleanedMeta)) continue;
-    // Uniques with variant bases repeat the base-type line (e.g.
-    // `{variant:2}Two-Toned Boots (…)`) between metadata lines — skip them so
-    // later metadata (Quality, Implicits, …) still gets parsed.
-    const metaVariants = variantIds(extractAnnotations(body[cursor]));
-    if (metaVariants && selectedVariant !== undefined && !metaVariants.includes(selectedVariant)) {
+    if (FLAG_LINE.test(cleanedMeta)) {
+      if (/^double corrupted$/i.test(cleanedMeta)) corrupted = true;
       continue;
     }
+    if (CLASS_REQUIREMENT_LINE.test(cleanedMeta)) continue;
+    if (isNonModLabel(body[cursor])) continue;
+    // 3.30 writes every variant base (`{group:1}{variant:2}Sapphire Ring`)
+    // before Quality/Implicits. Treating a non-selected one as the first mod
+    // stops the scan, so Implicits never parses and every mod is required.
+    // A variant line with no number after Implicits is a real mod (Impossible
+    // Escape). Only the pre-Implicits lines are alternate base names.
+    const metaSpec = lineVariant(extractAnnotations(body[cursor]));
+    const metaTagged =
+      metaSpec.variants !== null || metaSpec.groups !== null || metaSpec.versions !== null;
+    if (!passedImplicits && metaTagged && !/\d/.test(cleanedMeta)) {
+      if (keepVariantLine(metaSpec, selection)) {
+        const nextBase = cleanedMeta.replace(/^(superior|synthesised|vestigial)\s+/i, "");
+        if (nextBase) baseType = nextBase;
+      }
+      continue;
+    }
+    if (metaTagged && !keepVariantLine(metaSpec, selection)) continue;
     if (cleanedMeta === baseType) continue;
     break; // first real mod
   }
@@ -363,18 +528,15 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
   for (; cursor < body.length; cursor++) {
     const line = body[cursor];
     const annotations = extractAnnotations(line);
-
-    // Skip variant lines that do not belong to the selected variant.
-    const variants = variantIds(annotations);
-    if (variants && selectedVariant !== undefined && !variants.includes(selectedVariant)) {
-      continue;
-    }
-
     const cleaned = line.replace(ANNOTATION, "").trim();
     if (cleaned === "") continue;
     // `Corrupted` may carry annotations (e.g. `{variant:2}Corrupted`), so test
-    // after stripping them and after variant filtering.
+    // after stripping them. An unselected variant must not flip the flag.
     if (/^corrupted$/i.test(cleaned)) {
+      if (keepVariantLine(lineVariant(annotations), selection)) corrupted = true;
+      continue;
+    }
+    if (/^double corrupted$/i.test(cleaned)) {
       corrupted = true;
       continue;
     }
@@ -386,6 +548,7 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
     }
     if (FLAG_LINE.test(cleaned)) continue;
     if (CLASS_REQUIREMENT_LINE.test(cleaned)) continue;
+    if (isNonModLabel(line)) continue;
     if (cleaned === baseType) continue;
     // Skip affix-detail / metadata lines that some exports interleave with mods
     // (e.g. "Prefix:", "Suffix:", "Unique ID:") — they'd otherwise show as junk.
@@ -394,13 +557,17 @@ export function parseItemText(raw: string, slot?: string): ParsedItem | null {
     if (/^null$/i.test(cleaned)) continue;
 
     /**
-     * `Implicits: N` counts the enchant + scourge + implicit lines PoB writes
-     * at the top of the block, so those consume the budget and everything after
-     * it is explicit. Crucible passives are excluded from that count but can be
-     * written among the implicits — letting one take a slot pushed the item's
-     * real implicit out into the explicits.
+     * `Implicits: N` counts every enchant + scourge + implicit line PoB wrote,
+     * including variants this build did not select. A dropped line still has
+     * to consume that budget, or the next explicit is classified as implicit.
+     * Crucible passives are excluded from the count but can sit among the
+     * implicits — letting one take a slot pushed the real implicit out.
      */
     const isCrucible = annotations.includes("crucible");
+    if (annotations.includes("disabled") || !keepVariantLine(lineVariant(annotations), selection)) {
+      if (!isCrucible) modIndex++;
+      continue;
+    }
     const isImplicit = !isCrucible && modIndex < implicitCount;
     mods.push(toMod(line, isImplicit));
     if (!isCrucible) modIndex++;

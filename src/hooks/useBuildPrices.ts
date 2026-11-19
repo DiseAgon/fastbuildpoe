@@ -54,6 +54,7 @@ export function useBuildPrices(
       baseType: item.baseType,
       rarity: item.rarity,
       category: item.category,
+      slot: item.slot,
       gemLevel: item.gemLevel,
       quality: item.quality,
       corrupted: item.corrupted,

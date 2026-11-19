@@ -41,6 +41,7 @@ export const CX_TYPES = [
   "Omen",
   "Tattoo",
   "AllflameEmber",
+  "Thread",
 ] as const;
 export type CxType = (typeof CX_TYPES)[number];
 export const isCxType = (v: string): v is CxType => (CX_TYPES as readonly string[]).includes(v);
@@ -190,6 +191,12 @@ export const UNIQUE_TYPES = [
   "UniqueAccessory",
   "UniqueFlask",
   "UniqueJewel",
+  // 3.30 split these out of UniqueJewel / UniqueAccessory. A name that only
+  // lives here never priced if we only asked for the old five categories.
+  "ForbiddenJewel",
+  "ShrineBelt",
+  "UniqueTincture",
+  "UniqueRelic",
 ] as const;
 
 /**

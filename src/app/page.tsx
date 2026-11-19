@@ -166,6 +166,22 @@ export default function Home() {
     };
   }, [game, meta]);
 
+  // Drafts and shared pastes keep the league they were saved with. After a
+  // league launch that name is gone (Allflame → Covens) but still selected,
+  // so price checks and trade links keep hitting a dead league. A typed
+  // custom league is the only case we leave alone.
+  useEffect(() => {
+    const currentMeta = meta[game];
+    const current = leagues[game];
+    if (!currentMeta || !current || customLeague) return;
+    if (currentMeta.leagues.includes(current)) return;
+    setLeagues((prev) =>
+      prev[game] && !currentMeta.leagues.includes(prev[game])
+        ? { ...prev, [game]: currentMeta.defaultLeague }
+        : prev,
+    );
+  }, [meta, game, leagues, customLeague]);
+
   const view: ItemSetView | null = useMemo(() => {
     if (!build) return null;
     return build.itemSets.find((s) => s.id === activeSetId) ?? build.itemSets[0] ?? null;

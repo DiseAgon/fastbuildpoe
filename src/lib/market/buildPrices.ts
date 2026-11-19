@@ -39,6 +39,8 @@ export interface PriceableItem {
   baseType: string;
   rarity: string;
   category: string;
+  /** Equip slot, when the item came from a build. Wickerman viscera need it. */
+  slot?: string;
   gemLevel?: number;
   quality?: number;
   corrupted?: boolean;
@@ -121,10 +123,12 @@ export async function priceBuildItems(
 ): Promise<BuildPriceResult> {
   if (game === "poe2") return pricePoe2(league, items);
 
-  const [divinePrice, gemLines, baseLines, clusterLines, flaskLines, ...uniqueSets] =
+  const [divinePrice, gemLines, imbuedLines, visceraLines, baseLines, clusterLines, flaskLines, ...uniqueSets] =
     await Promise.all([
       getDivinePrice(league),
       stashLines(league, "SkillGem"),
+      stashLines(league, "ImbuedGem"),
+      stashLines(league, "Viscera"),
       stashLines(league, "BaseType"),
       // Cluster jewels are absent from BaseType and have their own category.
       stashLines(league, "ClusterJewel"),
@@ -135,7 +139,8 @@ export async function priceBuildItems(
     ]);
 
   const uniques = indexUniques(uniqueSets);
-  const gemTiers = indexGemTiers(gemLines);
+  const viscera = indexUniques([visceraLines]);
+  const gemTiers = indexGemTiers([...gemLines, ...imbuedLines]);
   const baseIcons = indexBaseIcons([baseLines, clusterLines, flaskLines]);
 
   if (uniques.size === 0 && gemTiers.size === 0) {
@@ -178,9 +183,25 @@ export async function priceBuildItems(
     }
 
     // Uniques are keyed on the unique's own name, not the base type.
-    const agg = item.rarity === "unique" ? uniques.get(norm(item.name)) : undefined;
+    // PoB prefixes a mutated unique with "Foulborn "; ninja keeps the real name.
+    const uniqueName = item.name.replace(/^foulborn\s+/i, "");
+    const agg =
+      item.rarity === "unique"
+        ? uniques.get(norm(uniqueName)) ?? uniques.get(norm(item.name))
+        : undefined;
     if (agg) {
       const quote = quoteUnique(item, agg, divinePrice);
+      return { ...quote, icon: quote.icon ?? baseIcon };
+    }
+
+    const visceraName = viscera.get(norm(item.name)) ?? viscera.get(norm(item.baseType));
+    if (
+      visceraName &&
+      (item.rarity === "normal" ||
+        /^(?:wickerman\b.*|head|body|arm|leg)$/i.test(item.slot ?? "") ||
+        /^viscera$/i.test(item.baseType))
+    ) {
+      const quote = quoteUnique(item, visceraName, divinePrice);
       return { ...quote, icon: quote.icon ?? baseIcon };
     }
 

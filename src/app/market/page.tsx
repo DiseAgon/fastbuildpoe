@@ -7,6 +7,7 @@ import type { FlipBoard, FlipRow } from "@/lib/market/ninja";
 
 const TYPE_TABS: Array<{ id: string; label: string }> = [
   { id: "Currency", label: "Currency" },
+  { id: "Thread", label: "Threads" },
   { id: "Scarab", label: "Scarabs" },
   { id: "Essence", label: "Essences" },
   { id: "Fragment", label: "Fragments" },

@@ -29,6 +29,7 @@ function toPriceable(raw: unknown): PriceableItem | null {
     baseType: typeof r.baseType === "string" ? r.baseType : "",
     rarity: typeof r.rarity === "string" ? r.rarity : "",
     category: typeof r.category === "string" ? r.category : "",
+    slot: typeof r.slot === "string" ? r.slot : undefined,
     gemLevel: num(r.gemLevel),
     quality: num(r.quality),
     corrupted: r.corrupted === true,
