@@ -1183,5 +1183,7 @@
  "Metadata/Items/Currency/AstrolabeBestiary": "Feral Astrolabe",
  "Metadata/Items/Currency/LegionCocoonQuiver": "Afarud Enshrouding Crystal",
  "Metadata/Items/Currency/AstrolabeIncursion": "Royal Astrolabe",
- "Metadata/Items/MapFragments/CurrencyAuguryBossKey": "Cursed Poppet"
+ "Metadata/Items/MapFragments/CurrencyAuguryBossKey": "Cursed Poppet",
+ "Metadata/Items/Currency/CurrencyStackedExalt": "Primordial Exalted Orb",
+ "Metadata/Items/Currency/CurrencyAddModToRareOriginator": "Originator's Exalted Orb"
 }
